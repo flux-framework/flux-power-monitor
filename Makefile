@@ -4,7 +4,7 @@ CFLAGS=-Wall -std=c11
 
 all: reduce.so 
 
-reduce.so: 
+reduce.so: reduce.c
 	$(CC) $(CPPFLAGS) $(LDFLAGS) $(CFLAGS) -shared -D BUILD_MODULE -fPIC -o reduce.so reduce.c -lflux-core -lvariorum
 
 clean:

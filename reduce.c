@@ -72,11 +72,15 @@ void reduce_ping_cb (flux_t *h, flux_msg_handler_t *mh, const flux_msg_t *msg, v
 }
 
 static void timer_handler( flux_reactor_t *r, flux_watcher_t *w, int revents, void* arg ){
-
+	static int initialized = 0;
+if( !initialized ){
+initialized=1;
 	flux_t *h = (flux_t*)arg;
 	// Go off and take your measurement.  
 	g_sample++;
 	g_value = 10;
+	
+	flux_log(h, LOG_CRIT, "!!! %s:%d Hello from rank %d of %d.\n", __FILE__, __LINE__, rank, size);
 
 	// Then....
 	if( rank >= size/2 ){
@@ -86,9 +90,10 @@ static void timer_handler( flux_reactor_t *r, flux_watcher_t *w, int revents, vo
 			"reduce.ping", 			// char *topic
 			dag[UPSTREAM],			// uint32_t nodeid (FLUX_NODEID_ANY, FLUX_NODEID_UPSTREAM, or a flux instance rank)
 			FLUX_RPC_NORESPONSE,		// int flags (FLUX_RPC_NORESPONSE, FLUX_RPC_STREAMING, or NOFLAGS)
-			"{s:i s:i s:i}", "sender", rank, "sample", g_sample, "value", g_value);	// const char *fmt, ...
+			"{s:i s:i s:i}", "sender", rank, "sample", g_sample++, "value", g_value);	// const char *fmt, ...
 			assert(f);
 			flux_future_destroy(f);
+}
 	}
 }
 
@@ -104,6 +109,7 @@ int mod_main (flux_t *h, int argc, char **argv){
 
 	flux_get_rank(h, &rank);
 	flux_get_size(h, &size);
+	flux_log(h, LOG_CRIT, "zzz %s:%d Hello from rank %d of %d.\n", __FILE__, __LINE__, rank, size);
 
 	//flux_log(h, LOG_CRIT, "QQQ %s:%d Hello from rank %d of %d.\n", __FILE__, __LINE__, rank, size);
 
