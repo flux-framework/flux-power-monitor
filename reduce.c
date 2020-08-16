@@ -26,40 +26,69 @@ enum{
 	UPSTREAM=0,
 	DOWNSTREAM1,
 	DOWNSTREAM2,
-	MAX_NODE_EDGES
+	MAX_NODE_EDGES,
+	MAX_CHILDREN=2,
 };
 
 static int dag[MAX_NODE_EDGES];
-static int ndownstream=0;
+
+
+
+static uint32_t g_sample = 0;		// sample count
+static uint32_t g_value = 10;		// Whatever it is we're measuring.
 
 void reduce_ping_cb (flux_t *h, flux_msg_handler_t *mh, const flux_msg_t *msg, void *arg){
-	int sender, sample, value;
-	//flux_log(h, LOG_CRIT, "QQQ %s:%d Rank %d received a reduce.ping query.\n", __FILE__, __LINE__, rank );
-	assert( flux_request_unpack (msg, NULL, "{s:i s:i s:i}", "sender", &sender, "sample", &sample, "value", &value) >= 0 );
-	//assert( flux_respond_pack (h, msg, "{s:i}", "sender", sender) >= 0 );
-	flux_log(h, LOG_CRIT, "QQQ %s:%d Rank %d received reduce.ping message %d:%d:%d.\n", __FILE__, __LINE__, rank, sender, sample, value );
+	static uint32_t _sample[MAX_CHILDREN] = {0,0};
+	static uint32_t _value[MAX_CHILDREN] = {0,0};
 
+	uint32_t sender, in_sample, in_value;
+
+	// Crack open the message and store off what we need.
+	assert( flux_request_unpack (msg, NULL, "{s:i s:i s:i}", "sender", &sender, "sample", &in_sample, "value", &in_value) >= 0 );
+	_sample[ sender%2 ] = in_sample;
+	_value[ sender%2 ] = in_value;
+
+	//FIXME Need to handle the case where we have an odd number of ranks.
+	if( _sample[0] == _sample[1] ){
+		// We have both samples, combine with ours and push upstream.
+		if( rank > 0 ){
+			flux_future_t *f = flux_rpc_pack (
+				h, 				// flux_t *h
+				"reduce.ping", 			// char *topic
+				dag[UPSTREAM],			// uint32_t nodeid (FLUX_NODEID_ANY, FLUX_NODEID_UPSTREAM, or a flux instance rank)
+				FLUX_RPC_NORESPONSE,		// int flags (FLUX_RPC_NORESPONSE, FLUX_RPC_STREAMING, or NOFLAGS)
+				"{s:i s:i s:i}", "sender", rank, "sample", g_sample, "value", g_value + _value[0] + _value[1]);	// const char *fmt, ...
+				assert(f);
+			flux_future_destroy(f);
+		}else{
+			flux_log(h, LOG_CRIT, "QQQ %s:%d Rank %d received reduce.ping message sample=%d value=%d.\n", 
+					__FILE__, 
+					__LINE__, 
+					rank, 
+					g_sample, 
+					g_value + _value[0] + _value[1] );
+		}
+	}
 }
 
 static void timer_handler( flux_reactor_t *r, flux_watcher_t *w, int revents, void* arg ){
 
-        static int initialized = 0;
 	flux_t *h = (flux_t*)arg;
-        if( !initialized ){
-		initialized = 1;
-		if( rank != 0 ){
-			flux_log(h, LOG_CRIT, "QQQ %s:%d rank %d of %d timer notification.\n", __FILE__, __LINE__, rank, size);
-			flux_future_t *f = flux_rpc_pack (
-					h, 				// flux_t *h
-					"reduce.ping", 			// char *topic
-					FLUX_NODEID_UPSTREAM,		// uint32_t nodeid (FLUX_NODEID_ANY, FLUX_NODEID_UPSTREAM, or a flux instance rank)
-					FLUX_RPC_NORESPONSE,		// int flags (FLUX_RPC_NORESPONSE, FLUX_RPC_STREAMING, or NOFLAGS)
-					"{s:i s:i s:i}", "sender", rank, "sample", rank, "value", rank);	// const char *fmt, ...
+	// Go off and take your measurement.  
+	g_sample++;
+	g_value = 10;
+
+	// Then....
+	if( rank >= size/2 ){
+		// Just send the message.  These ranks don't do any combining.
+		flux_future_t *f = flux_rpc_pack (
+			h, 				// flux_t *h
+			"reduce.ping", 			// char *topic
+			dag[UPSTREAM],			// uint32_t nodeid (FLUX_NODEID_ANY, FLUX_NODEID_UPSTREAM, or a flux instance rank)
+			FLUX_RPC_NORESPONSE,		// int flags (FLUX_RPC_NORESPONSE, FLUX_RPC_STREAMING, or NOFLAGS)
+			"{s:i s:i s:i}", "sender", rank, "sample", g_sample, "value", g_value);	// const char *fmt, ...
 			assert(f);
-			//assert( -1 != flux_rpc_get_unpack (f, "{s:i s:i s:i}", "sender", &i, "sample", &i, "value", &i) );
 			flux_future_destroy(f);
-			//flux_log(h, LOG_CRIT, "QQQ %s:%d rank %d received response n=%d.\n", __FILE__, __LINE__, rank, i);
-		}
 	}
 }
 
