@@ -6,5 +6,5 @@
 echo `date` The flux we will be using is: `which flux`
 
 echo `date` running salloc
-salloc --nodes=2 --time=24 --partition=pdebug 	
+salloc --nodes=8 --time=12 --partition=pdebug 	
 

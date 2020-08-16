@@ -47,6 +47,8 @@ void reduce_ping_cb (flux_t *h, flux_msg_handler_t *mh, const flux_msg_t *msg, v
 	assert( flux_request_unpack (msg, NULL, "{s:i s:i s:i}", "sender", &sender, "sample", &in_sample, "value", &in_value) >= 0 );
 	_sample[ sender%2 ] = in_sample;
 	_value[ sender%2 ] = in_value;
+	flux_log(h, LOG_CRIT, "QQQ %s:%d Rank %d received reduce.ping message from %d sample=%d value=%d.\n", 
+			__FILE__, __LINE__, rank, sender, in_sample, in_value);
 
 	//FIXME Need to handle the case where we have an odd number of ranks.
 	if( _sample[0] == _sample[1] ){
@@ -80,11 +82,11 @@ initialized=1;
 	g_sample++;
 	g_value = 10;
 	
-	flux_log(h, LOG_CRIT, "!!! %s:%d Hello from rank %d of %d.\n", __FILE__, __LINE__, rank, size);
 
 	// Then....
 	if( rank >= size/2 ){
 		// Just send the message.  These ranks don't do any combining.
+		flux_log(h, LOG_CRIT, "!!! %s:%d LEAF rank %d of %d.\n", __FILE__, __LINE__, rank, size);
 		flux_future_t *f = flux_rpc_pack (
 			h, 				// flux_t *h
 			"reduce.ping", 			// char *topic
@@ -109,7 +111,6 @@ int mod_main (flux_t *h, int argc, char **argv){
 
 	flux_get_rank(h, &rank);
 	flux_get_size(h, &size);
-	flux_log(h, LOG_CRIT, "zzz %s:%d Hello from rank %d of %d.\n", __FILE__, __LINE__, rank, size);
 
 	//flux_log(h, LOG_CRIT, "QQQ %s:%d Hello from rank %d of %d.\n", __FILE__, __LINE__, rank, size);
 
@@ -146,41 +147,3 @@ int mod_main (flux_t *h, int argc, char **argv){
 
 MOD_NAME (MY_MOD_NAME);
 
-#if 0
-/* increment integer and send it back */
-void rpctest_incr_cb (flux_t *h, flux_msg_handler_t *mh, const flux_msg_t *msg, void *arg)
-{
-	int i;
-	flux_log(h, LOG_CRIT, "QQQ %s:%d Rank %d received a rpctest.incr query.\n", __FILE__, __LINE__, rank );
-	assert( flux_request_unpack (msg, NULL, "{s:i}", "n", &i) >= 0 );
-	assert( flux_respond_pack (h, msg, "{s:i}", "n", i + 1) >= 0 );
-	flux_log(h, LOG_CRIT, "QQQ %s:%d Rank %d responded to a rpctest.incr query.\n", __FILE__, __LINE__, rank );
-
-}
-
-void timer_handler( flux_reactor_t *r, flux_watcher_t *w, int revents, void* arg ){
-
-	int i;
-        static int initialized = 0;
-        flux_t *h = (flux_t*)arg;
-	// Confirm we really need this.
-        flux_get_rank(h, &rank);
-        flux_get_size(h, &size);
-
-        if( !initialized ){
-		initialized = 1;
-		// discards the future, probably a leak.
-		flux_log(h, LOG_CRIT, "QQQ %s:%d rank %d preparing to make rpctest.incr query.\n", __FILE__, __LINE__, rank);
-		flux_future_t *f = flux_rpc_pack (h, "happiness.incr", FLUX_NODEID_UPSTREAM, 0, "{s:i}", "n", 107);
-		assert(f);
-		int rc = flux_rpc_get_unpack (f, "{s:i}", "n", &i);
-		if( rc == -1 ){
-			flux_log_error( h, "flux_rpc_get_unpack() exploded." );
-		}
-		flux_future_destroy(f);
-		flux_log(h, LOG_CRIT, "QQQ %s:%d rank %d received response n=%d.\n", __FILE__, __LINE__, rank, i);
-	}
-}
-
-
-#endif
