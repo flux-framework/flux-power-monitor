@@ -51,7 +51,7 @@ void reduce_ping_cb (flux_t *h, flux_msg_handler_t *mh, const flux_msg_t *msg, v
 			__FILE__, __LINE__, rank, sender, in_sample, in_value);
 
 	//FIXME Need to handle the case where we have an odd number of ranks.
-	if( _sample[0] == _sample[1] ){
+	if( rank==0 ||_sample[0] == _sample[1] ){
 		// We have both samples, combine with ours and push upstream.
 		if( rank > 0 ){
 			flux_future_t *f = flux_rpc_pack (
@@ -86,7 +86,7 @@ initialized=1;
 	// Then....
 	if( rank >= size/2 ){
 		// Just send the message.  These ranks don't do any combining.
-		flux_log(h, LOG_CRIT, "!!! %s:%d LEAF rank %d of %d.\n", __FILE__, __LINE__, rank, size);
+		flux_log(h, LOG_CRIT, "!!! %s:%d LEAF rank %d (size=%d).\n", __FILE__, __LINE__, rank, size);
 		flux_future_t *f = flux_rpc_pack (
 			h, 				// flux_t *h
 			"reduce.ping", 			// char *topic
