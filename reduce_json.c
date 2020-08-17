@@ -67,15 +67,46 @@ void reduce_ping_cb (flux_t *h, flux_msg_handler_t *mh, const flux_msg_t *msg, v
 				"{s:i s:i s:f}", "sender", rank, "sample", g_sample, "value", g_value + _value[0] + _value[1]);	// const char *fmt, ...
 				assert(f);
 			flux_future_destroy(f);
-		}else{
+		}
+        else { 
 			flux_log(h, LOG_CRIT, "QQQ %s:%d Rank %d received reduce.ping message sample=%d value=%lf.\n", 
 					__FILE__, 
 					__LINE__, 
 					rank, 
 					g_sample, 
 					g_value + _value[0] + _value[1] );
-		}
+	    }
 	}
+
+    // If Rank is 0, create the KVS transaction, now that we have the value.
+    if (rank == 0) {
+        int rc; 
+        char kvs_key[50];
+        char kvs_val[50];
+ 
+        // Allocate the kvs transaction
+        flux_kvs_txn_t *kvs_txn = flux_kvs_txn_create();
+        assert( NULL != kvs_txn );
+
+        // Create an entry from the kvs; 0 indicates NO_FLAGS
+        sprintf(kvs_key, "job_power.sample.%d",g_sample);
+        sprintf(kvs_val, "%lf",g_value + _value[0] + _value[1]);
+
+        rc = flux_kvs_txn_put( kvs_txn, 0, kvs_key, kvs_val);
+        assert( -1 != rc );
+
+        // Commit the key+value.
+        flux_future_t *kvs_future = flux_kvs_commit( h, NULL, 0, kvs_txn );
+        assert( NULL != kvs_future );
+
+        // Wait for confirmation
+        rc = flux_future_wait_for( kvs_future, 10.0 );
+        assert( rc != -1 );
+
+        // Destroy our future.
+        flux_future_destroy( kvs_future ); 
+    }
+
 }
 
 static void timer_handler( flux_reactor_t *r, flux_watcher_t *w, int revents, void* arg ){
@@ -87,35 +118,39 @@ static void timer_handler( flux_reactor_t *r, flux_watcher_t *w, int revents, vo
     double power_node; 
 
     if( initialized <= 5){
-    initialized++;
-	flux_t *h = (flux_t*)arg;
+        initialized++;
+	    flux_t *h = (flux_t*)arg;
 
-	// Go off and take your measurement.  
-    ret = variorum_get_node_power_json(power_obj);
-    if (ret != 0)                                                                  
+	    // Go off and take your measurement.  
+        ret = variorum_get_node_power_json(power_obj);
+        if (ret != 0)                                                                  
             flux_log(h, LOG_CRIT, "JSON: get node power failed!\n");           
 
-    power_node = json_real_value(json_object_get(power_obj, "power_node"));
+        power_node = json_real_value(json_object_get(power_obj, "power_node"));
 
-	g_sample++;
-    // Instantaneous, no accumulation yet. 
-	g_value = power_node; 
+	    g_sample++;
+        // Instantaneous, no accumulation yet. 
+	    g_value = power_node; 
 
-//    flux_log(h, LOG_CRIT, "JSON: rank %d power is %lf\n", rank, power_node); 
-	// Then....
-	if( rank >= size/2 ){
-		// Just send the message.  These ranks don't do any combining.
-		flux_log(h, LOG_CRIT, "!!! %s:%d LEAF rank %d (size=%d).\n", __FILE__, __LINE__, rank, size);
-		flux_future_t *f = flux_rpc_pack (
-			h, 				// flux_t *h
-			"reduce.ping", 			// char *topic
-			dag[UPSTREAM],			// uint32_t nodeid (FLUX_NODEID_ANY, FLUX_NODEID_UPSTREAM, or a flux instance rank)
-			FLUX_RPC_NORESPONSE,		// int flags (FLUX_RPC_NORESPONSE, FLUX_RPC_STREAMING, or NOFLAGS)
-			"{s:i s:i s:f}", "sender", rank, "sample", g_sample++, "value", g_value);	// const char *fmt, ...
-			assert(f);
-			flux_future_destroy(f);
-}
-	}
+        //flux_log(h, LOG_CRIT, "JSON: rank %d power is %lf\n", rank, power_node); 
+
+	    // Then....
+    	if( rank >= size/2 ){
+		    // Just send the message.  These ranks don't do any combining.
+	    	flux_log(h, LOG_CRIT, "!!! %s:%d LEAF rank %d (size=%d).\n", __FILE__, __LINE__, rank, size);
+	    	flux_future_t *f = flux_rpc_pack (
+		    	h, 				// flux_t *h
+		    	"reduce.ping", 			// char *topic
+		    	dag[UPSTREAM],			// uint32_t nodeid (FLUX_NODEID_ANY, FLUX_NODEID_UPSTREAM, or a flux instance rank)
+		    	FLUX_RPC_NORESPONSE,		// int flags (FLUX_RPC_NORESPONSE, FLUX_RPC_STREAMING, or NOFLAGS)
+		    	"{s:i s:i s:f}", "sender", rank, "sample", g_sample++, "value", g_value);	// const char *fmt, ...
+		    	assert(f);
+		    	flux_future_destroy(f);
+        }
+    }
+
+        //Clean up JSON obj
+        json_decref(power_obj); 
 }
 
 
