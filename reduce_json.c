@@ -41,8 +41,7 @@ static double g_value = 0.0;		// Whatever it is we're measuring.
 
 void reduce_set_powercap_cb (flux_t *h, flux_msg_handler_t *mh, const flux_msg_t *msg, void *arg){
 
-	flux_log(h, LOG_CRIT, "QQQ %s %s I received reduce.set_powercap message. \n", 
-			__FILE__, __LINE__);
+	flux_log(h, LOG_CRIT, "QQQ I received reduce.set_powercap message. \n");
 
 
 	const void *data;                                                              
