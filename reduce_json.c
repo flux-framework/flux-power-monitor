@@ -35,10 +35,39 @@ enum{
 static int dag[MAX_NODE_EDGES];
 
 
-
 static uint32_t g_sample = 0;		// sample count
 //static uint32_t g_value = 10;		// Whatever it is we're measuring.
 static double g_value = 0.0;		// Whatever it is we're measuring.
+
+void reduce_set_powercap_cb (flux_t *h, flux_msg_handler_t *mh, const flux_msg_t *msg, void *arg){
+
+	const void *data;                                                              
+    int size;                                                                      
+    char *errmsg = "";                                                             
+                                                                                   
+    /*  Use flux_msg_get_payload(3) to get the raw data and size                   
+     *   of the request payload.                                                   
+     *  For JSON payloads, also see flux_request_unpack().                         
+     */                                                                            
+    if (flux_msg_get_payload (msg, &data, &size) < 0) {                            
+        flux_log_error (h, "reduce_set_powercap_cb: flux_msg_get_payload");                       
+        errmsg = "flux_msg_get_payload failed";                                    
+        goto err;                                                                  
+    }                                                                              
+                                                                                   
+    /*  Use flux_respond_raw(3) to include copy of payload in the response.        
+     *  For JSON payloads, see flux_respond_pack(3).                               
+     */                                                                            
+    if (flux_respond_raw (h, msg, data, size) < 0) {                               
+        flux_log_error (h, "echo_cb: flux_respond_raw");                           
+        errmsg = "flux_respond_raw failed";                                        
+        goto err;                                                                  
+    }                                                                              
+    return;                                                                        
+err:                                                                               
+    if (flux_respond_error (h, msg, errno, errmsg) < 0)                            
+        flux_log_error (h, "flux_respond_error");               
+}
 
 void reduce_ping_cb (flux_t *h, flux_msg_handler_t *mh, const flux_msg_t *msg, void *arg){
 	static uint32_t _sample[MAX_CHILDREN] = {0,0};
@@ -157,7 +186,8 @@ static void timer_handler( flux_reactor_t *r, flux_watcher_t *w, int revents, vo
 
 static const struct flux_msg_handler_spec htab[] = { 
     //int typemask;           const char *topic_glob;	flux_msg_handler_f cb;  uint32_t rolemask;
-    { FLUX_MSGTYPE_REQUEST,   "reduce.ping",    	reduce_ping_cb, 	0 },
+    { FLUX_MSGTYPE_REQUEST,   "reduce.ping",    		reduce_ping_cb, 	0 },
+	{ FLUX_MSGTYPE_REQUEST,   "reduce.set_powercap",	reduce_set_cap_cb, 	0 },
     FLUX_MSGHANDLER_TABLE_END,
 };
 
