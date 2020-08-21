@@ -187,7 +187,7 @@ static void timer_handler( flux_reactor_t *r, flux_watcher_t *w, int revents, vo
 static const struct flux_msg_handler_spec htab[] = { 
     //int typemask;           const char *topic_glob;	flux_msg_handler_f cb;  uint32_t rolemask;
     { FLUX_MSGTYPE_REQUEST,   "reduce.ping",    		reduce_ping_cb, 	0 },
-	{ FLUX_MSGTYPE_REQUEST,   "reduce.set_powercap",	reduce_set_cap_cb, 	0 },
+	{ FLUX_MSGTYPE_REQUEST,   "reduce.set_powercap",	reduce_set_powercap_cb, 	0 },
     FLUX_MSGHANDLER_TABLE_END,
 };
 
