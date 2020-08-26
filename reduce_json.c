@@ -43,27 +43,44 @@ void reduce_set_powercap_cb (flux_t *h, flux_msg_handler_t *mh, const flux_msg_t
 
 	flux_log(h, LOG_CRIT, "QQQ I received reduce.set_powercap message. \n");
 
-
-	const void *data;                                                              
-    int size;                                                                      
+	//const void *data;                                                              
+    //int size;
+    int power_cap;                                                                      
     char *errmsg = "";                                                             
-                                                                                   
+    int ret = 0; 
+                                                                                
     /*  Use flux_msg_get_payload(3) to get the raw data and size                   
      *   of the request payload.                                                   
      *  For JSON payloads, also see flux_request_unpack().                         
      */                                                                            
-    if (flux_msg_get_payload (msg, &data, &size) < 0) {                            
-        flux_log_error (h, "reduce_set_powercap_cb: flux_msg_get_payload");                       
-        errmsg = "flux_msg_get_payload failed";                                    
+    if (flux_request_unpack (msg, NULL, "{s:i}", "node", &power_cap) < 0) {                            
+        flux_log_error (h, "reduce_set_powercap_cb: flux_request_unpack");                       
+        errmsg = "flux_request_unpack failed";                                    
         goto err;                                                                  
     }                                                                              
-                                                                                   
+ 
+    flux_log(h, LOG_CRIT, "Data is %d", power_cap); 
+ 
+    ret = variorum_set_node_power_limit(power_cap);                       
+    if (ret != 0)                                                                  
+    {                                                                              
+        flux_log(h, LOG_CRIT, "Set node power limit failed!\n");                                  
+        return;                                                                
+    }
+        
+    ret = variorum_print_power_limits();
+    if (ret != 0)                                                                  
+    {                                                                              
+        flux_log(h, LOG_CRIT, "Set node power limit failed!\n");                                  
+        return;                                                                
+    }
+                                                                              
     /*  Use flux_respond_raw(3) to include copy of payload in the response.        
      *  For JSON payloads, see flux_respond_pack(3).                               
      */                                                                            
-    if (flux_respond_raw (h, msg, data, size) < 0) {                               
-        flux_log_error (h, "echo_cb: flux_respond_raw");                           
-        errmsg = "flux_respond_raw failed";                                        
+    if (flux_respond_pack (h, msg, "{s:i}", "node", power_cap) < 0) {                               
+        flux_log_error (h, "reduce_set_powercap_cb: flux_respond_pack");                           
+        errmsg = "flux_respond_pack failed";                                        
         goto err;                                                                  
     }                                                                              
     return;                                                                        
@@ -71,6 +88,7 @@ err:
     if (flux_respond_error (h, msg, errno, errmsg) < 0)                            
         flux_log_error (h, "flux_respond_error");               
 }
+
 
 void reduce_ping_cb (flux_t *h, flux_msg_handler_t *mh, const flux_msg_t *msg, void *arg){
 	static uint32_t _sample[MAX_CHILDREN] = {0,0};
