@@ -67,17 +67,11 @@ void reduce_set_powercap_cb (flux_t *h, flux_msg_handler_t *mh, const flux_msg_t
         flux_log(h, LOG_CRIT, "Set node power limit failed!\n");                                  
         return;                                                                
     }
-        
-    ret = variorum_print_power_limits();
-    if (ret != 0)                                                                  
-    {                                                                              
-        flux_log(h, LOG_CRIT, "Set node power limit failed!\n");                                  
-        return;                                                                
-    }
                                                                               
     /*  Use flux_respond_raw(3) to include copy of payload in the response.        
      *  For JSON payloads, see flux_respond_pack(3).                               
-     */                                                                            
+     */                                                                       
+    // We only get here if power capping succeeds.      
     if (flux_respond_pack (h, msg, "{s:i}", "node", power_cap) < 0) {                               
         flux_log_error (h, "reduce_set_powercap_cb: flux_respond_pack");                           
         errmsg = "flux_respond_pack failed";                                        
@@ -178,7 +172,7 @@ static void timer_handler( flux_reactor_t *r, flux_watcher_t *w, int revents, vo
 
         power_node = json_real_value(json_object_get(power_obj, "power_node"));
 
-	    g_sample++;
+	    // g_sample++; // Double counting.
         // Instantaneous, no accumulation yet. 
 	    g_value = power_node; 
 

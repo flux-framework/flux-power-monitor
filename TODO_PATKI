@@ -1,0 +1,7 @@
+- Submit best effort PR and test again on Quartz and Lassen 
+- Submit documentation PR 
+- Debug the issue of sample counting (looks like a print issue on rank 0 versus
+    other ranks). 
+- Figure out a way to log variorum info in Flux with LOG_CRIT. 
+
+
