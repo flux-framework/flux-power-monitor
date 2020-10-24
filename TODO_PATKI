@@ -1,6 +1,6 @@
-- Clean up the reduce module and rename it.
-- Debug the issue of sample counting (looks like a print issue on rank 0 versus
-    other ranks). 
-- Figure out a way to log variorum info in Flux with LOG_CRIT. 
+- Verify power values are correct
+- Test with an application that is running on the 4 nodes.
+- Add a proper readme to explain the algorithm, and expected output and KVS check.
+- Discuss with Mark on how to turn this into a flux module for flux core.
 
 
