@@ -7,7 +7,7 @@
 #include "variorum.h"
 
 static uint32_t rank, size;
-#define MY_MOD_NAME "reduce"
+#define MY_MOD_NAME "flux_pwr_mgr"
 const char default_service_name[] = MY_MOD_NAME;
 //static const int NOFLAGS=0;
 
@@ -39,9 +39,9 @@ static uint32_t g_sample = 0;		// sample count
 //static uint32_t g_value = 10;		// Whatever it is we're measuring.
 static double g_value = 0.0;		// Whatever it is we're measuring.
 
-void reduce_set_powercap_cb (flux_t *h, flux_msg_handler_t *mh, const flux_msg_t *msg, void *arg){
+void flux_pwr_mgr_set_powercap_cb (flux_t *h, flux_msg_handler_t *mh, const flux_msg_t *msg, void *arg){
 
-	flux_log(h, LOG_CRIT, "QQQ I received reduce.set_powercap message. \n");
+	flux_log(h, LOG_CRIT, "QQQ I received flux_pwr_mgr.set_powercap message. \n");
 
 	//const void *data;                                                              
     //int size;
@@ -54,7 +54,7 @@ void reduce_set_powercap_cb (flux_t *h, flux_msg_handler_t *mh, const flux_msg_t
      *  For JSON payloads, also see flux_request_unpack().                         
      */                                                                            
     if (flux_request_unpack (msg, NULL, "{s:i}", "node", &power_cap) < 0) {                            
-        flux_log_error (h, "reduce_set_powercap_cb: flux_request_unpack");                       
+        flux_log_error (h, "flux_pwr_mgr_set_powercap_cb: flux_request_unpack");                       
         errmsg = "flux_request_unpack failed";                                    
         goto err;                                                                  
     }                                                                              
@@ -73,7 +73,7 @@ void reduce_set_powercap_cb (flux_t *h, flux_msg_handler_t *mh, const flux_msg_t
      */                                                                       
     // We only get here if power capping succeeds.      
     if (flux_respond_pack (h, msg, "{s:i}", "node", power_cap) < 0) {                               
-        flux_log_error (h, "reduce_set_powercap_cb: flux_respond_pack");                           
+        flux_log_error (h, "flux_pwr_mgr_set_powercap_cb: flux_respond_pack");                           
         errmsg = "flux_respond_pack failed";                                        
         goto err;                                                                  
     }                                                                              
@@ -84,7 +84,7 @@ err:
 }
 
 
-void reduce_ping_cb (flux_t *h, flux_msg_handler_t *mh, const flux_msg_t *msg, void *arg){
+void flux_pwr_mgr_ping_cb (flux_t *h, flux_msg_handler_t *mh, const flux_msg_t *msg, void *arg){
 	static uint32_t _sample[MAX_CHILDREN] = {0,0};
 	//static uint32_t _value[MAX_CHILDREN] = {0,0};
 	static double _value[MAX_CHILDREN] = {0,0};
@@ -96,7 +96,7 @@ void reduce_ping_cb (flux_t *h, flux_msg_handler_t *mh, const flux_msg_t *msg, v
 	assert( flux_request_unpack (msg, NULL, "{s:i s:i s:f}", "sender", &sender, "sample", &in_sample, "value", &in_value) >= 0 );
 	_sample[ sender%2 ] = in_sample;
 	_value[ sender%2 ] = in_value;
-	flux_log(h, LOG_CRIT, "QQQ %s:%d Rank %d received reduce.ping message from %d sample=%d value=%lf.\n", 
+	flux_log(h, LOG_CRIT, "QQQ %s:%d Rank %d received flux_pwr_mgr.ping message from %d sample=%d value=%lf.\n", 
 			__FILE__, __LINE__, rank, sender, in_sample, in_value);
 
 	//FIXME Need to handle the case where we have an odd number of ranks.
@@ -105,7 +105,7 @@ void reduce_ping_cb (flux_t *h, flux_msg_handler_t *mh, const flux_msg_t *msg, v
 		if( rank > 0 ){
 			flux_future_t *f = flux_rpc_pack (
 				h, 				// flux_t *h
-				"reduce.ping", 			// char *topic
+				"flux_pwr_mgr.ping", 			// char *topic
 				dag[UPSTREAM],			// uint32_t nodeid (FLUX_NODEID_ANY, FLUX_NODEID_UPSTREAM, or a flux instance rank)
 				FLUX_RPC_NORESPONSE,		// int flags (FLUX_RPC_NORESPONSE, FLUX_RPC_STREAMING, or NOFLAGS)
 				"{s:i s:i s:f}", "sender", rank, "sample", g_sample, "value", g_value + _value[0] + _value[1]);	// const char *fmt, ...
@@ -113,7 +113,7 @@ void reduce_ping_cb (flux_t *h, flux_msg_handler_t *mh, const flux_msg_t *msg, v
 			flux_future_destroy(f);
 		}
         else { 
-			flux_log(h, LOG_CRIT, "QQQ %s:%d Rank %d received reduce.ping message sample=%d value=%lf.\n", 
+			flux_log(h, LOG_CRIT, "QQQ %s:%d Rank %d received flux_pwr_mgr.ping message sample=%d value=%lf.\n", 
 					__FILE__, 
 					__LINE__, 
 					rank, 
@@ -184,7 +184,7 @@ static void timer_handler( flux_reactor_t *r, flux_watcher_t *w, int revents, vo
 	    	flux_log(h, LOG_CRIT, "!!! %s:%d LEAF rank %d (size=%d).\n", __FILE__, __LINE__, rank, size);
 	    	flux_future_t *f = flux_rpc_pack (
 		    	h, 				// flux_t *h
-		    	"reduce.ping", 			// char *topic
+		    	"flux_pwr_mgr.ping", 			// char *topic
 		    	dag[UPSTREAM],			// uint32_t nodeid (FLUX_NODEID_ANY, FLUX_NODEID_UPSTREAM, or a flux instance rank)
 		    	FLUX_RPC_NORESPONSE,		// int flags (FLUX_RPC_NORESPONSE, FLUX_RPC_STREAMING, or NOFLAGS)
 		    	"{s:i s:i s:f}", "sender", rank, "sample", g_sample++, "value", g_value);	// const char *fmt, ...
@@ -201,8 +201,8 @@ static void timer_handler( flux_reactor_t *r, flux_watcher_t *w, int revents, vo
 
 static const struct flux_msg_handler_spec htab[] = { 
     //int typemask;           const char *topic_glob;	flux_msg_handler_f cb;  uint32_t rolemask;
-    { FLUX_MSGTYPE_REQUEST,   "reduce.ping",    		reduce_ping_cb, 	0 },
-	{ FLUX_MSGTYPE_REQUEST,   "reduce.set_powercap",	reduce_set_powercap_cb, 	0 },
+    { FLUX_MSGTYPE_REQUEST,   "flux_pwr_mgr.ping",    		flux_pwr_mgr_ping_cb, 	0 },
+	{ FLUX_MSGTYPE_REQUEST,   "flux_pwr_mgr.set_powercap",	flux_pwr_mgr_set_powercap_cb, 	0 },
     FLUX_MSGHANDLER_TABLE_END,
 };
 

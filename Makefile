@@ -16,13 +16,10 @@ LDFLAGS=-L/g/g90/patki1/src/variorum_install/lib -L/g/g90/patki1/src/flux-framew
 # Common
 CFLAGS=-Wall -std=c11
 
-all: reduce.so reduce_json.so
+all: flux_pwr_mgr.so
 
-reduce.so: reduce.c
-	$(CC) $(CPPFLAGS) $(LDFLAGS) $(CFLAGS) -shared -D BUILD_MODULE -fPIC -o reduce.so reduce.c -lflux-core -lvariorum
-
-reduce_json.so: reduce_json.c
-	$(CC) $(CPPFLAGS) $(LDFLAGS) $(CFLAGS) -shared -D BUILD_MODULE -fPIC -o reduce_json.so reduce_json.c -lflux-core -lvariorum
+flux_pwr_mgr.so: flux_pwr_mgr.c
+	$(CC) $(CPPFLAGS) $(LDFLAGS) $(CFLAGS) -shared -D BUILD_MODULE -fPIC -o flux_pwr_mgr.so flux_pwr_mgr.c -lflux-core -lvariorum
 
 clean:
-	rm reduce.so reduce_json.so
+	rm flux_pwr_mgr.so
