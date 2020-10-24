@@ -3,6 +3,9 @@
 #LDFLAGS=-L/f/install/variorum/lib -L/f/install/flux-core/lib
 
 
+#CPPFLAGS=-I/g/g90/patki1/src/variorum_install_lassen/include -I/g/g90/patki1/src/flux-framework/flux-install/include
+#LDFLAGS=-L/g/g90/patki1/src/variorum_install_lassen/lib -L/g/g90/patki1/src/flux-framework/flux-install/lib 
+
 CPPFLAGS=-I/g/g90/patki1/src/variorum_install/include -I/g/g90/patki1/src/flux-framework/flux-install/include
 LDFLAGS=-L/g/g90/patki1/src/variorum_install/lib -L/g/g90/patki1/src/flux-framework/flux-install/lib 
 

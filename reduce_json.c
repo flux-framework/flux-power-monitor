@@ -61,7 +61,7 @@ void reduce_set_powercap_cb (flux_t *h, flux_msg_handler_t *mh, const flux_msg_t
  
     flux_log(h, LOG_CRIT, "Data is %d", power_cap); 
  
-    ret = variorum_set_node_power_limit(power_cap);                       
+    ret = variorum_set_best_effort_node_power_limit(power_cap);                       
     if (ret != 0)                                                                  
     {                                                                              
         flux_log(h, LOG_CRIT, "Set node power limit failed!\n");                                  
