@@ -3,6 +3,7 @@
 #include <flux/core.h>
 #include <jansson.h>
 #include <stdint.h>
+#include <unistd.h>
 
 #include "variorum.h"
 
@@ -34,17 +35,15 @@ enum{
 
 static int dag[MAX_NODE_EDGES];
 
+static uint32_t sample_id = 0;		// sample counter
 
-static uint32_t g_sample = 0;		// sample count
-//static uint32_t g_value = 10;		// Whatever it is we're measuring.
-static double g_value = 0.0;		// Whatever it is we're measuring.
+static double node_power_acc = 0.0;		// Node power accumulator
+static double gpu_power_acc = 0.0;		// GPU power accumulator
+static double cpu_power_acc = 0.0;		// CPU power accumulator
+static double mem_power_acc = 0.0;   // Memory power accumulator
 
 void flux_pwr_mgr_set_powercap_cb (flux_t *h, flux_msg_handler_t *mh, const flux_msg_t *msg, void *arg){
 
-	flux_log(h, LOG_CRIT, "QQQ I received flux_pwr_mgr.set_powercap message. \n");
-
-	//const void *data;                                                              
-    //int size;
     int power_cap;                                                                      
     char *errmsg = "";                                                             
     int ret = 0; 
@@ -59,18 +58,19 @@ void flux_pwr_mgr_set_powercap_cb (flux_t *h, flux_msg_handler_t *mh, const flux
         goto err;                                                                  
     }                                                                              
  
-    flux_log(h, LOG_CRIT, "Data is %d", power_cap); 
+	flux_log(h, LOG_CRIT, "I received flux_pwr_mgr.set_powercap message of %d W. \n", power_cap);
  
     ret = variorum_set_best_effort_node_power_limit(power_cap);                       
     if (ret != 0)                                                                  
     {                                                                              
-        flux_log(h, LOG_CRIT, "Set node power limit failed!\n");                                  
+        flux_log(h, LOG_CRIT, "Variorum set node power limit failed!\n");                                  
         return;                                                                
     }
                                                                               
     /*  Use flux_respond_raw(3) to include copy of payload in the response.        
      *  For JSON payloads, see flux_respond_pack(3).                               
      */                                                                       
+
     // We only get here if power capping succeeds.      
     if (flux_respond_pack (h, msg, "{s:i}", "node", power_cap) < 0) {                               
         flux_log_error (h, "flux_pwr_mgr_set_powercap_cb: flux_respond_pack");                           
@@ -83,59 +83,88 @@ err:
         flux_log_error (h, "flux_respond_error");               
 }
 
-
-void flux_pwr_mgr_ping_cb (flux_t *h, flux_msg_handler_t *mh, const flux_msg_t *msg, void *arg){
+void flux_pwr_mgr_collect_power_cb (flux_t *h, flux_msg_handler_t *mh, const flux_msg_t *msg, void *arg){
 	static uint32_t _sample[MAX_CHILDREN] = {0,0};
-	//static uint32_t _value[MAX_CHILDREN] = {0,0};
-	static double _value[MAX_CHILDREN] = {0,0};
+	static double _node_value[MAX_CHILDREN] = {0,0};
+	static double _gpu_value[MAX_CHILDREN] = {0,0};
+	static double _cpu_value[MAX_CHILDREN] = {0,0};
+	static double _mem_value[MAX_CHILDREN] = {0,0};
 
 	uint32_t sender, in_sample; 
-    double in_value;
+    double temp_1, temp_2, temp_3, temp_4;
+
+    const char* recv_from_hostname;
+    char my_hostname[256];
+    gethostname(my_hostname, 256); 
 
 	// Crack open the message and store off what we need.
-	assert( flux_request_unpack (msg, NULL, "{s:i s:i s:f}", "sender", &sender, "sample", &in_sample, "value", &in_value) >= 0 );
-	_sample[ sender%2 ] = in_sample;
-	_value[ sender%2 ] = in_value;
-	flux_log(h, LOG_CRIT, "QQQ %s:%d Rank %d received flux_pwr_mgr.ping message from %d sample=%d value=%lf.\n", 
-			__FILE__, __LINE__, rank, sender, in_sample, in_value);
+	assert( flux_request_unpack (msg, NULL, "{s:i s:i s:s s:f s:f s:f s:f}", 
+            "sender", &sender, "sample", &in_sample, "hostname", &recv_from_hostname, 
+            "node_power", &temp_1, "gpu_power", &temp_2, "cpu_power", &temp_3, "mem_power", &temp_4) >= 0 );
 
-	//FIXME Need to handle the case where we have an odd number of ranks.
+	_sample[ sender%2 ] = in_sample;
+	_node_value[ sender%2 ] = temp_1;
+	_gpu_value[ sender%2 ] = temp_2;
+	_cpu_value[ sender%2 ] = temp_3;
+	_mem_value[ sender%2 ] = temp_4;
+	
+    flux_log(h, LOG_CRIT, "QQQ %s:%d Rank %d received flux_pwr_mgr.collect_power message from %d sample=%d node value=%lf and host %s.\n", 
+			__FILE__, __LINE__, rank, sender, in_sample, temp_1, recv_from_hostname);
+
 	if( rank==0 ||_sample[0] == _sample[1] ){
 		// We have both samples, combine with ours and push upstream.
 		if( rank > 0 ){
 			flux_future_t *f = flux_rpc_pack (
 				h, 				// flux_t *h
-				"flux_pwr_mgr.ping", 			// char *topic
+				"flux_pwr_mgr.collect_power", 			// char *topic
 				dag[UPSTREAM],			// uint32_t nodeid (FLUX_NODEID_ANY, FLUX_NODEID_UPSTREAM, or a flux instance rank)
 				FLUX_RPC_NORESPONSE,		// int flags (FLUX_RPC_NORESPONSE, FLUX_RPC_STREAMING, or NOFLAGS)
-				"{s:i s:i s:f}", "sender", rank, "sample", g_sample, "value", g_value + _value[0] + _value[1]);	// const char *fmt, ...
+				"{s:i s:i s:s s:f s:f s:f s:f}", "sender", rank, "sample", sample_id, "hostname", my_hostname,  
+                "node_power", node_power_acc + _node_value[0] + _node_value[1], 
+                 "gpu_power", gpu_power_acc + _gpu_value[0] + _gpu_value[1], 
+                 "cpu_power", cpu_power_acc + _cpu_value[0] + _cpu_value[1], 
+                 "mem_power", mem_power_acc + _mem_value[0] + _mem_value[1]);
 				assert(f);
 			flux_future_destroy(f);
 		}
-        else { 
-			flux_log(h, LOG_CRIT, "QQQ %s:%d Rank %d received flux_pwr_mgr.ping message sample=%d value=%lf.\n", 
+        else { //Rank 0? 
+			flux_log(h, LOG_CRIT, "ZERO %s:%d Rank %d has sample=%d node_value=%lf and host %s .\n", 
 					__FILE__, 
 					__LINE__, 
 					rank, 
-					g_sample, 
-					g_value + _value[0] + _value[1] );
+					sample_id, 
+					node_power_acc + _node_value[0] + _node_value[1], my_hostname );
 	    }
 	}
 
     // If Rank is 0, create the KVS transaction, now that we have the value.
     if (rank == 0) {
         int rc; 
-        char kvs_key[50];
-        char kvs_val[50];
+        char kvs_key[80];
+        char kvs_val[80];
  
         // Allocate the kvs transaction
         flux_kvs_txn_t *kvs_txn = flux_kvs_txn_create();
         assert( NULL != kvs_txn );
 
         // Create an entry from the kvs; 0 indicates NO_FLAGS
-        sprintf(kvs_key, "job_power.sample.%d",g_sample);
-        sprintf(kvs_val, "%lf",g_value + _value[0] + _value[1]);
+        sprintf(kvs_key, "job_total_power.sample.%d",sample_id);
+        sprintf(kvs_val, "%lf",node_power_acc + _node_value[0] + _node_value[1]);
+        rc = flux_kvs_txn_put( kvs_txn, 0, kvs_key, kvs_val);
+        assert( -1 != rc );
 
+        sprintf(kvs_key, "job_gpu_power.sample.%d",sample_id);
+        sprintf(kvs_val, "%lf",gpu_power_acc + _gpu_value[0] + _gpu_value[1]);
+        rc = flux_kvs_txn_put( kvs_txn, 0, kvs_key, kvs_val);
+        assert( -1 != rc );
+
+        sprintf(kvs_key, "job_cpu_power.sample.%d",sample_id);
+        sprintf(kvs_val, "%lf",cpu_power_acc + _cpu_value[0] + _cpu_value[1]);
+        rc = flux_kvs_txn_put( kvs_txn, 0, kvs_key, kvs_val);
+        assert( -1 != rc );
+
+        sprintf(kvs_key, "job_mem_power.sample.%d",sample_id);
+        sprintf(kvs_val, "%lf",mem_power_acc + _mem_value[0] + _mem_value[1]);
         rc = flux_kvs_txn_put( kvs_txn, 0, kvs_key, kvs_val);
         assert( -1 != rc );
 
@@ -159,35 +188,54 @@ static void timer_handler( flux_reactor_t *r, flux_watcher_t *w, int revents, vo
 
     int ret; 
     json_t *power_obj  = json_object(); 
-    double power_node; 
 
-    if( initialized <= 5){
+    double node_power; 
+    double gpu_power; 
+    double cpu_power; 
+    double mem_power; 
+
+    char my_hostname[256];
+    gethostname(my_hostname, 256); 
+
+    if( initialized <= 500){
         initialized++;
 	    flux_t *h = (flux_t*)arg;
 
-	    // Go off and take your measurement.  
+        // Go off and take your measurement.  
         ret = variorum_get_node_power_json(power_obj);
         if (ret != 0)                                                                  
             flux_log(h, LOG_CRIT, "JSON: get node power failed!\n");           
 
-        power_node = json_real_value(json_object_get(power_obj, "power_node"));
+        node_power = json_real_value(json_object_get(power_obj, "power_node"));
+        gpu_power = json_real_value(json_object_get(power_obj, "power_gpu_socket_0")) + json_real_value(json_object_get(power_obj, "power_gpu_socket_1")) ;
+        cpu_power = json_real_value(json_object_get(power_obj, "power_cpu_socket_0")) + json_real_value(json_object_get(power_obj, "power_cpu_socket_1")) ;
+        mem_power = json_real_value(json_object_get(power_obj, "power_mem_socket_0")) + json_real_value(json_object_get(power_obj, "power_mem_socket_1")) ;
 
-	    // g_sample++; // Double counting.
-        // Instantaneous, no accumulation yet. 
-	    g_value = power_node; 
+        // Instantaneous power values at this sample, no accumulation yet. 
+	    node_power_acc = node_power; 
+	    gpu_power_acc = gpu_power; 
+	    cpu_power_acc = cpu_power; 
+	    mem_power_acc = mem_power; 
 
-        //flux_log(h, LOG_CRIT, "JSON: rank %d power is %lf\n", rank, power_node); 
+        // All ranks increment their sample id? 
+        sample_id++; 
+
+        //flux_log(h, LOG_CRIT, "JSON: rank %d power is %lf\n", rank, node_power); 
+
+        
+        flux_log(h, LOG_CRIT, "INFO: I am rank %d with node power %lf on sample %d and host %s\n", rank, node_power_acc, sample_id, my_hostname); 
 
 	    // Then....
     	if( rank >= size/2 ){
 		    // Just send the message.  These ranks don't do any combining.
-	    	flux_log(h, LOG_CRIT, "!!! %s:%d LEAF rank %d (size=%d).\n", __FILE__, __LINE__, rank, size);
+	    	// flux_log(h, LOG_CRIT, "!!! %s:%d LEAF rank %d (size=%d) on host %s.\n", __FILE__, __LINE__, rank, size, hostname);
 	    	flux_future_t *f = flux_rpc_pack (
 		    	h, 				// flux_t *h
-		    	"flux_pwr_mgr.ping", 			// char *topic
+		    	"flux_pwr_mgr.collect_power", 			// char *topic
 		    	dag[UPSTREAM],			// uint32_t nodeid (FLUX_NODEID_ANY, FLUX_NODEID_UPSTREAM, or a flux instance rank)
 		    	FLUX_RPC_NORESPONSE,		// int flags (FLUX_RPC_NORESPONSE, FLUX_RPC_STREAMING, or NOFLAGS)
-		    	"{s:i s:i s:f}", "sender", rank, "sample", g_sample++, "value", g_value);	// const char *fmt, ...
+		    	"{s:i s:i s:s s:f s:f s:f s:f}", "sender", rank, "sample", sample_id, "hostname", my_hostname, 
+                      "node_power", node_power_acc, "gpu_power", gpu_power_acc, "cpu_power", cpu_power_acc, "mem_power", mem_power_acc); 
 		    	assert(f);
 		    	flux_future_destroy(f);
         }
@@ -200,8 +248,7 @@ static void timer_handler( flux_reactor_t *r, flux_watcher_t *w, int revents, vo
 
 
 static const struct flux_msg_handler_spec htab[] = { 
-    //int typemask;           const char *topic_glob;	flux_msg_handler_f cb;  uint32_t rolemask;
-    { FLUX_MSGTYPE_REQUEST,   "flux_pwr_mgr.ping",    		flux_pwr_mgr_ping_cb, 	0 },
+    { FLUX_MSGTYPE_REQUEST,   "flux_pwr_mgr.collect_power",    		flux_pwr_mgr_collect_power_cb, 	0 },
 	{ FLUX_MSGTYPE_REQUEST,   "flux_pwr_mgr.set_powercap",	flux_pwr_mgr_set_powercap_cb, 	0 },
     FLUX_MSGHANDLER_TABLE_END,
 };
@@ -216,8 +263,8 @@ int mod_main (flux_t *h, int argc, char **argv){
 	// We don't have easy access to the topology of the underlying flux network, so we'll set up
 	// an overlay instead.  
 	dag[UPSTREAM]    = (rank==0)       ? -1 : rank / 2;
-	dag[DOWNSTREAM1] = (rank > size/2) ? -1 : rank * 2;
-	dag[DOWNSTREAM2] = (rank > size/2) ? -1 : rank * 2 + 1;
+	dag[DOWNSTREAM1] = (rank >= size/2) ? -1 : rank * 2;
+	dag[DOWNSTREAM2] = (rank >= size/2) ? -1 : rank * 2 + 1;
 	if( rank==size/2 && size%2 ){
 		// If we have an odd size then rank size/2 only gets a single child.
 		dag[DOWNSTREAM2] = -1;
