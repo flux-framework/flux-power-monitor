@@ -197,7 +197,7 @@ static void timer_handler( flux_reactor_t *r, flux_watcher_t *w, int revents, vo
     char my_hostname[256];
     gethostname(my_hostname, 256); 
 
-    if( initialized <= 500){
+    if( initialized <= 1000){
         initialized++;
 	    flux_t *h = (flux_t*)arg;
 
@@ -220,9 +220,6 @@ static void timer_handler( flux_reactor_t *r, flux_watcher_t *w, int revents, vo
         // All ranks increment their sample id? 
         sample_id++; 
 
-        //flux_log(h, LOG_CRIT, "JSON: rank %d power is %lf\n", rank, node_power); 
-
-        
         flux_log(h, LOG_CRIT, "INFO: I am rank %d with node power %lf on sample %d and host %s\n", rank, node_power_acc, sample_id, my_hostname); 
 
 	    // Then....
