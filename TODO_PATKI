@@ -5,16 +5,21 @@ June 24 2021
 - Add hostname to the msg, so we know whom we received from. 
 - Add GPU, CPU, memory power for the job
 - Test power capping on multiple nodes on Lassen
-- Allow for running infinitely in the background; don't stop at 6 samples.
+- Allow for running infinitely long in the background; don't stop at 6 samples.
     -- How do we scale this? Where can the data reside in the future? 
     -- Can we dump the KVS contents after the job finishes executing?
-- How do we measure overhead of communication as well as variorum? 
+- How do we measure overhead of communication as well as variorum API? 
 - Scaling tests on 256+ nodes, what's the overhead?
+
 - Test with LBANN on multiple nodes, collect power data
     -- Start with lenet.py, extend to the ATOM example, ask for input decks.
     -- Flux scripts for LBANN (autogenenerate at some point using the launcher interface in LBANN) 
+
 - Does this work correctly for odd number of ranks? 
+
 - Cleanup code further, more meaningful names for variables. 
+
+- This is the system-level monitor, we need to also implement one where we can associate power with jobs.
 
 ===
 Jan 2021

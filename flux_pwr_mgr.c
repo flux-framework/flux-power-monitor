@@ -60,7 +60,7 @@ void flux_pwr_mgr_set_powercap_cb (flux_t *h, flux_msg_handler_t *mh, const flux
  
 	flux_log(h, LOG_CRIT, "I received flux_pwr_mgr.set_powercap message of %d W. \n", power_cap);
  
-    ret = variorum_set_best_effort_node_power_limit(power_cap);                       
+    ret = variorum_cap_best_effort_node_power_limit(power_cap);                       
     if (ret != 0)                                                                  
     {                                                                              
         flux_log(h, LOG_CRIT, "Variorum set node power limit failed!\n");                                  
@@ -206,10 +206,10 @@ static void timer_handler( flux_reactor_t *r, flux_watcher_t *w, int revents, vo
         if (ret != 0)                                                                  
             flux_log(h, LOG_CRIT, "JSON: get node power failed!\n");           
 
-        node_power = json_real_value(json_object_get(power_obj, "power_node"));
-        gpu_power = json_real_value(json_object_get(power_obj, "power_gpu_socket_0")) + json_real_value(json_object_get(power_obj, "power_gpu_socket_1")) ;
-        cpu_power = json_real_value(json_object_get(power_obj, "power_cpu_socket_0")) + json_real_value(json_object_get(power_obj, "power_cpu_socket_1")) ;
-        mem_power = json_real_value(json_object_get(power_obj, "power_mem_socket_0")) + json_real_value(json_object_get(power_obj, "power_mem_socket_1")) ;
+        node_power = json_real_value(json_object_get(power_obj, "power_node_watts"));
+        gpu_power = json_real_value(json_object_get(power_obj, "power_gpu_watts_socket_0")) + json_real_value(json_object_get(power_obj, "power_gpu_watts_socket_1")) ;
+        cpu_power = json_real_value(json_object_get(power_obj, "power_cpu_watts_socket_0")) + json_real_value(json_object_get(power_obj, "power_cpu_watts_socket_1")) ;
+        mem_power = json_real_value(json_object_get(power_obj, "power_mem_watts_socket_0")) + json_real_value(json_object_get(power_obj, "power_mem_watts_socket_1")) ;
 
         // Instantaneous power values at this sample, no accumulation yet. 
 	    node_power_acc = node_power; 
