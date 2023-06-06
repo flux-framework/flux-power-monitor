@@ -1,0 +1,182 @@
+flux_pwr_monitor_la-flux_pwr_monitor.lo: flux_pwr_monitor.c \
+ /usr/include/stdc-predef.h /usr/include/assert.h /usr/include/features.h \
+ /usr/include/sys/cdefs.h /usr/include/bits/wordsize.h \
+ /usr/include/bits/long-double.h /usr/include/gnu/stubs.h \
+ /usr/include/gnu/stubs-64.h /usr/include/flux/core.h \
+ /usr/include/flux/core/flux.h /usr/include/flux/core/types.h \
+ /usr/include/flux/core/handle.h \
+ /collab/usr/global/tools/tce4/packages/gcc/gcc-10.3.1/lib/gcc/x86_64-redhat-linux/10/include/stdint.h \
+ /usr/include/stdint.h /usr/include/bits/libc-header-start.h \
+ /usr/include/bits/types.h /usr/include/bits/typesizes.h \
+ /usr/include/bits/wchar.h /usr/include/bits/stdint-intn.h \
+ /usr/include/bits/stdint-uintn.h \
+ /collab/usr/global/tools/tce4/packages/gcc/gcc-10.3.1/lib/gcc/x86_64-redhat-linux/10/include/stdbool.h \
+ /usr/include/string.h \
+ /collab/usr/global/tools/tce4/packages/gcc/gcc-10.3.1/lib/gcc/x86_64-redhat-linux/10/include/stddef.h \
+ /usr/include/bits/types/locale_t.h /usr/include/bits/types/__locale_t.h \
+ /usr/include/strings.h /usr/include/flux/core/message.h \
+ /collab/usr/global/tools/tce4/packages/gcc/gcc-10.3.1/lib/gcc/x86_64-redhat-linux/10/include/stdarg.h \
+ /usr/include/stdio.h /usr/include/bits/types/__fpos_t.h \
+ /usr/include/bits/types/__mbstate_t.h \
+ /usr/include/bits/types/__fpos64_t.h /usr/include/bits/types/__FILE.h \
+ /usr/include/bits/types/FILE.h /usr/include/bits/types/struct_FILE.h \
+ /usr/include/bits/stdio_lim.h /usr/include/bits/sys_errlist.h \
+ /usr/include/bits/stdio.h /usr/include/stdlib.h \
+ /usr/include/bits/waitflags.h /usr/include/bits/waitstatus.h \
+ /usr/include/bits/floatn.h /usr/include/bits/floatn-common.h \
+ /usr/include/sys/types.h /usr/include/bits/types/clock_t.h \
+ /usr/include/bits/types/clockid_t.h /usr/include/bits/types/time_t.h \
+ /usr/include/bits/types/timer_t.h /usr/include/endian.h \
+ /usr/include/bits/endian.h /usr/include/bits/byteswap.h \
+ /usr/include/bits/uintn-identity.h /usr/include/sys/select.h \
+ /usr/include/bits/select.h /usr/include/bits/types/sigset_t.h \
+ /usr/include/bits/types/__sigset_t.h \
+ /usr/include/bits/types/struct_timeval.h \
+ /usr/include/bits/types/struct_timespec.h \
+ /usr/include/bits/pthreadtypes.h /usr/include/bits/thread-shared-types.h \
+ /usr/include/bits/pthreadtypes-arch.h /usr/include/alloca.h \
+ /usr/include/bits/stdlib-bsearch.h /usr/include/bits/stdlib-float.h \
+ /usr/include/flux/core/reactor.h /usr/include/sys/stat.h \
+ /usr/include/bits/stat.h /usr/include/flux/core/buffer.h \
+ /usr/include/flux/core/msg_handler.h /usr/include/flux/core/connector.h \
+ /usr/include/flux/core/msglist.h /usr/include/flux/core/request.h \
+ /usr/include/flux/core/response.h /usr/include/flux/core/control.h \
+ /usr/include/flux/core/rpc.h /usr/include/flux/core/future.h \
+ /usr/include/flux/core/flog.h /usr/include/syslog.h \
+ /usr/include/sys/syslog.h /usr/include/bits/syslog-path.h \
+ /usr/include/errno.h /usr/include/bits/errno.h \
+ /usr/include/linux/errno.h /usr/include/asm/errno.h \
+ /usr/include/asm-generic/errno.h /usr/include/asm-generic/errno-base.h \
+ /usr/include/flux/core/panic.h /usr/include/flux/core/event.h \
+ /usr/include/flux/core/module.h /usr/include/flux/core/attr.h \
+ /usr/include/flux/core/conf.h /usr/include/flux/core/barrier.h \
+ /usr/include/flux/core/service.h /usr/include/flux/core/version.h \
+ /usr/include/flux/core/plugin.h /usr/include/flux/core/sync.h \
+ /usr/include/flux/core/disconnect.h /usr/include/flux/core/stats.h \
+ /usr/include/flux/core/kvs.h /usr/include/flux/core/kvs_dir.h \
+ /usr/include/flux/core/kvs_lookup.h /usr/include/flux/core/kvs_getroot.h \
+ /usr/include/flux/core/kvs_txn.h /usr/include/flux/core/kvs_commit.h \
+ /usr/include/flux/core/kvs_copy.h /usr/include/flux/core/job.h \
+ /usr/include/flux/core/jobspec1.h /usr/include/flux/core/subprocess.h \
+ /usr/include/jansson.h /usr/include/jansson_config.h \
+ /usr/include/unistd.h /usr/include/bits/posix_opt.h \
+ /usr/include/bits/environments.h /usr/include/bits/confname.h \
+ /usr/include/bits/getopt_posix.h /usr/include/bits/getopt_core.h \
+ /usr/include/variorum.h
+/usr/include/stdc-predef.h:
+/usr/include/assert.h:
+/usr/include/features.h:
+/usr/include/sys/cdefs.h:
+/usr/include/bits/wordsize.h:
+/usr/include/bits/long-double.h:
+/usr/include/gnu/stubs.h:
+/usr/include/gnu/stubs-64.h:
+/usr/include/flux/core.h:
+/usr/include/flux/core/flux.h:
+/usr/include/flux/core/types.h:
+/usr/include/flux/core/handle.h:
+/collab/usr/global/tools/tce4/packages/gcc/gcc-10.3.1/lib/gcc/x86_64-redhat-linux/10/include/stdint.h:
+/usr/include/stdint.h:
+/usr/include/bits/libc-header-start.h:
+/usr/include/bits/types.h:
+/usr/include/bits/typesizes.h:
+/usr/include/bits/wchar.h:
+/usr/include/bits/stdint-intn.h:
+/usr/include/bits/stdint-uintn.h:
+/collab/usr/global/tools/tce4/packages/gcc/gcc-10.3.1/lib/gcc/x86_64-redhat-linux/10/include/stdbool.h:
+/usr/include/string.h:
+/collab/usr/global/tools/tce4/packages/gcc/gcc-10.3.1/lib/gcc/x86_64-redhat-linux/10/include/stddef.h:
+/usr/include/bits/types/locale_t.h:
+/usr/include/bits/types/__locale_t.h:
+/usr/include/strings.h:
+/usr/include/flux/core/message.h:
+/collab/usr/global/tools/tce4/packages/gcc/gcc-10.3.1/lib/gcc/x86_64-redhat-linux/10/include/stdarg.h:
+/usr/include/stdio.h:
+/usr/include/bits/types/__fpos_t.h:
+/usr/include/bits/types/__mbstate_t.h:
+/usr/include/bits/types/__fpos64_t.h:
+/usr/include/bits/types/__FILE.h:
+/usr/include/bits/types/FILE.h:
+/usr/include/bits/types/struct_FILE.h:
+/usr/include/bits/stdio_lim.h:
+/usr/include/bits/sys_errlist.h:
+/usr/include/bits/stdio.h:
+/usr/include/stdlib.h:
+/usr/include/bits/waitflags.h:
+/usr/include/bits/waitstatus.h:
+/usr/include/bits/floatn.h:
+/usr/include/bits/floatn-common.h:
+/usr/include/sys/types.h:
+/usr/include/bits/types/clock_t.h:
+/usr/include/bits/types/clockid_t.h:
+/usr/include/bits/types/time_t.h:
+/usr/include/bits/types/timer_t.h:
+/usr/include/endian.h:
+/usr/include/bits/endian.h:
+/usr/include/bits/byteswap.h:
+/usr/include/bits/uintn-identity.h:
+/usr/include/sys/select.h:
+/usr/include/bits/select.h:
+/usr/include/bits/types/sigset_t.h:
+/usr/include/bits/types/__sigset_t.h:
+/usr/include/bits/types/struct_timeval.h:
+/usr/include/bits/types/struct_timespec.h:
+/usr/include/bits/pthreadtypes.h:
+/usr/include/bits/thread-shared-types.h:
+/usr/include/bits/pthreadtypes-arch.h:
+/usr/include/alloca.h:
+/usr/include/bits/stdlib-bsearch.h:
+/usr/include/bits/stdlib-float.h:
+/usr/include/flux/core/reactor.h:
+/usr/include/sys/stat.h:
+/usr/include/bits/stat.h:
+/usr/include/flux/core/buffer.h:
+/usr/include/flux/core/msg_handler.h:
+/usr/include/flux/core/connector.h:
+/usr/include/flux/core/msglist.h:
+/usr/include/flux/core/request.h:
+/usr/include/flux/core/response.h:
+/usr/include/flux/core/control.h:
+/usr/include/flux/core/rpc.h:
+/usr/include/flux/core/future.h:
+/usr/include/flux/core/flog.h:
+/usr/include/syslog.h:
+/usr/include/sys/syslog.h:
+/usr/include/bits/syslog-path.h:
+/usr/include/errno.h:
+/usr/include/bits/errno.h:
+/usr/include/linux/errno.h:
+/usr/include/asm/errno.h:
+/usr/include/asm-generic/errno.h:
+/usr/include/asm-generic/errno-base.h:
+/usr/include/flux/core/panic.h:
+/usr/include/flux/core/event.h:
+/usr/include/flux/core/module.h:
+/usr/include/flux/core/attr.h:
+/usr/include/flux/core/conf.h:
+/usr/include/flux/core/barrier.h:
+/usr/include/flux/core/service.h:
+/usr/include/flux/core/version.h:
+/usr/include/flux/core/plugin.h:
+/usr/include/flux/core/sync.h:
+/usr/include/flux/core/disconnect.h:
+/usr/include/flux/core/stats.h:
+/usr/include/flux/core/kvs.h:
+/usr/include/flux/core/kvs_dir.h:
+/usr/include/flux/core/kvs_lookup.h:
+/usr/include/flux/core/kvs_getroot.h:
+/usr/include/flux/core/kvs_txn.h:
+/usr/include/flux/core/kvs_commit.h:
+/usr/include/flux/core/kvs_copy.h:
+/usr/include/flux/core/job.h:
+/usr/include/flux/core/jobspec1.h:
+/usr/include/flux/core/subprocess.h:
+/usr/include/jansson.h:
+/usr/include/jansson_config.h:
+/usr/include/unistd.h:
+/usr/include/bits/posix_opt.h:
+/usr/include/bits/environments.h:
+/usr/include/bits/confname.h:
+/usr/include/bits/getopt_posix.h:
+/usr/include/bits/getopt_core.h:
+/usr/include/variorum.h:
