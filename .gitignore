@@ -1,0 +1,59 @@
+**/Makefile.in
+**/Makefile
+**/*.la
+**/*.o
+**/*.lo
+/ar-lib
+/mdate-sh
+/py-compile
+/test-driver
+/ylwrap
+**/.libs/
+**/.deps/
+.dirstamp
+
+# http://www.gnu.org/software/autoconf
+
+autom4te.cache
+autoscan.log
+autoscan-*.log
+aclocal.m4
+config/compile
+config/config.cache
+config/config.guess
+config/config.h
+config/config.h.in
+config/config.h.in~
+config/config.log
+config/config.status
+config/config.sub
+configure
+configure.scan
+config/depcomp
+config/install-sh
+config/missing
+config/stamp-h1
+config/lt*
+# https://www.gnu.org/software/libtool/
+config.log
+config.status
+config/ltmain.sh
+config/libtool*
+libtool
+# http://www.gnu.org/software/texinfo
+
+/texinfo.tex
+
+# http://www.gnu.org/software/m4/
+
+m4/libtool.m4
+m4/ltoptions.m4
+m4/ltsugar.m4
+m4/ltversion.m4
+m4/lt~obsolete.m4
+
+# Generated Makefile
+# (meta build system like autotools,
+# can automatically generate from config.status script
+# (which is called by configure script))
+Makefile
