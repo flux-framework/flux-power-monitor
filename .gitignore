@@ -11,9 +11,9 @@
 **/.libs/
 **/.deps/
 .dirstamp
-
+.cache
 # http://www.gnu.org/software/autoconf
-
+compile_commands.json
 autom4te.cache
 autoscan.log
 autoscan-*.log

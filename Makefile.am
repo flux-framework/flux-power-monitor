@@ -1,5 +1,6 @@
 SUBDIRS = \
-	src/flux_pwr_monitor
+	src/common \
+	src/flux_pwr_monitor 
 
 EXTRA_DIST = \
 	NEWS.md \
