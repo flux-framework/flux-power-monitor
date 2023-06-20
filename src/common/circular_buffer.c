@@ -9,6 +9,8 @@ circular_buffer_t *circular_buffer_new(size_t max_size,
   circular_buffer_t *buffer =
       (circular_buffer_t *)malloc(sizeof(circular_buffer_t));
   buffer->list = zlist_new();
+  if(buffer==NULL)
+    return NULL;
   buffer->max_size = max_size;
   buffer->current_size = 0;
   buffer->destructor = destructor;
@@ -73,6 +75,7 @@ void circular_buffer_destroy(circular_buffer_t *buffer) {
 
       zlist_destroy(&buffer->list);
     }
+    buffer->list = NULL;
     free(buffer);
   }
 }

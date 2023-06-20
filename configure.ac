@@ -27,6 +27,8 @@ AC_PROG_INSTALL
 
 #Initialize Libtool
 LT_INIT
+CPPFLAGS_save="$CPPFLAGS -std=c11"
+LDFLAGS_save="$LDFLAGS"
 
 AC_ARG_WITH([variorum],
             [AS_HELP_STRING([--with-variorum=DIR],
@@ -41,9 +43,11 @@ AC_ARG_WITH([variorum],
                            [AC_MSG_ERROR([Function variorum_get_power is required in Variorum library.])])
             ],
             [AC_MSG_ERROR([Variorum library is required. Please use --with-variorum to specify its location.])])
-CPPFLAGS="$CPPFLAGS_save"
-LDFLAGS="$LDFLAGS_save"
+CPPFLAGS="$CPPFLAGS_save $VARIORUM_INCLUDE"
+LDFLAGS="$LDFLAGS_save $VARIORUM_LIB"
 AX_FLUX_CORE
+fluxpwr_ldflags=" -avoid-version -export-symbols-regex '^mod_(main|name|service)\$\$' --disable-static -shared -export-dynamic"
+AC_SUBST(fluxpwr_ldflags)
 
 # Checks for header files.
 AC_CHECK_HEADERS([stdint.h unistd.h])
@@ -51,9 +55,14 @@ AC_CHECK_HEADERS([stdint.h unistd.h])
 # Checks for typedefs, structures, and compiler characteristics.
 AC_TYPE_UINT32_T
 
+PKG_CHECK_MODULES([JANSSON], [jansson >= 2.7],
+                  [],
+                  [AC_MSG_ERROR([Jansson library not found. Please install it.])])
+
 # Checks for library functions.
-AC_FUNC_MALLOC
-AC_CHECK_FUNCS([gethostname])
+
+# AC_FUNC_MALLOC
+AC_CHECK_FUNCS([gethostname strdup])
 
 AC_CONFIG_FILES(\
                 Makefile \
