@@ -27,6 +27,8 @@ AC_PROG_INSTALL
 
 #Initialize Libtool
 LT_INIT
+CFLAGS="-O0 -g"
+
 CPPFLAGS_save="$CPPFLAGS -std=c11"
 LDFLAGS_save="$LDFLAGS"
 
@@ -45,9 +47,22 @@ AC_ARG_WITH([variorum],
             [AC_MSG_ERROR([Variorum library is required. Please use --with-variorum to specify its location.])])
 CPPFLAGS="$CPPFLAGS_save $VARIORUM_INCLUDE"
 LDFLAGS="$LDFLAGS_save $VARIORUM_LIB"
+AC_ARG_ENABLE([ubsan],
+  [AS_HELP_STRING([--enable-ubsan], [Enable Undefined Behavior Sanitizer])],
+  [CFLAGS="$CFLAGS -fsanitize=undefined"
+   CXXFLAGS="$CXXFLAGS -fsanitize=undefined"
+   LDFLAGS="$LDFLAGS -fsanitize=undefined"])
+
+# Enable Address Sanitizer
+AC_ARG_ENABLE([asan],
+  [AS_HELP_STRING([--enable-asan], [Enable Address Sanitizer])],
+  [CFLAGS="$CFLAGS -fsanitize=address"
+   CXXFLAGS="$CXXFLAGS -fsanitize=address"
+   LDFLAGS="$LDFLAGS -fsanitize=address"])
 AX_FLUX_CORE
 fluxpwr_ldflags=" -avoid-version -export-symbols-regex '^mod_(main|name|service)\$\$' --disable-static -shared -export-dynamic"
 AC_SUBST(fluxpwr_ldflags)
+
 
 # Checks for header files.
 AC_CHECK_HEADERS([stdint.h unistd.h])

@@ -12,6 +12,7 @@ int parse_json(char *s, response_power_data *data) {
   double gpu_power;
   double cpu_power;
   double mem_power;
+  double timestamp;
   json_t *power_obj = json_object();
   if (power_obj == NULL)
     return -1;
@@ -25,12 +26,13 @@ int parse_json(char *s, response_power_data *data) {
   // + json_real_value(json_object_get(power_obj, "power_cpu_watts_socket_1")) ;
   mem_power =
       json_real_value(json_object_get(power_obj, "power_mem_watts_socket_0"));
+
   data->number_of_samples++;
   if (cpu_power > 0)
     data->agg_cpu_power += cpu_power;
   if (node_power > 0)
     data->agg_node_power += node_power;
-  if (node_power > 0)
+  if (gpu_power > 0)
     data->agg_gpu_power += gpu_power;
   if (mem_power > 0)
     data->agg_mem_power += mem_power;
@@ -39,8 +41,8 @@ int parse_json(char *s, response_power_data *data) {
 }
 response_power_data *get_agg_power_data(circular_buffer_t *buffer,
                                         const char *hostname,
-                                        uint64_t start_time, uint64_t end_time,
-                                        int sampling_rate) {
+                                        uint64_t start_time,
+                                        uint64_t end_time) {
 
   if (buffer == NULL)
     return NULL;
@@ -76,16 +78,21 @@ response_power_data *get_agg_power_data(circular_buffer_t *buffer,
     end_time = latest;
     power_data->full_data_present = false;
   }
+  // Check if end_time is still greater than start_time after adjustment
+  if (start_time > end_time) {
+    return NULL;
+  }
 
-  // Iterate over each item in the buffer again.
   for (node = zlist_first(buffer->list); node != NULL;
        node = zlist_next(buffer->list)) {
-    // If the item's timestamp is within the sampling_rate of startTime and
-    // endTime, add the item to the results list.
-    if ((node->timestamp >= start_time &&
-         node->timestamp <= start_time + sampling_rate) ||
-        (node->timestamp >= end_time - sampling_rate &&
-         node->timestamp <= end_time)) {
+    // If the item's timestamp is within start_time and end_time range, add the
+    // item to the results list.
+    if (node->timestamp >= start_time && node->timestamp <= end_time) {
+      if (node->timestamp < power_data->start_time)
+        power_data->start_time = node->timestamp;
+
+      if (node->timestamp > power_data->end_time)
+        power_data->end_time = node->timestamp;
       if (parse_json(node->power_info, power_data) < 0) {
         return NULL;
       }
@@ -94,6 +101,7 @@ response_power_data *get_agg_power_data(circular_buffer_t *buffer,
   if (power_data->number_of_samples == 0) {
     return NULL;
   }
+  // Iterate over each item in the buffer again.
   if (power_data->agg_cpu_power > 0)
     power_data->agg_cpu_power /= power_data->number_of_samples;
   if (power_data->agg_node_power > 0)

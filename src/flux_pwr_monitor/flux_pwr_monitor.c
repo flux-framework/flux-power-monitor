@@ -27,9 +27,9 @@ int write_data_to_root_node_info(flux_t *h, root_node_level_info *info,
   if (info == NULL || power_data == NULL)
     return -1;
 
-  // flux_log(h, LOG_CRIT,
-  //          "ZERO: Writing data for sender:%d whose hostname is %s\n",
-  //          info->rank, info->hostname);
+  flux_log(h, LOG_CRIT,
+           "ZERO: Writing data for sender:%d whose hostname is %s\n",
+           info->rank, info->hostname);
   circular_buffer_push(info->power_data, (void *)power_data);
   return 0;
 }
@@ -49,7 +49,9 @@ void flux_pwr_monitor_collect_power_cb(flux_t *h, flux_msg_handler_t *mh,
     goto error;
   // flux_log(h, LOG_CRIT,
   //          "INFO:I received flux_pwr_monitor.collect_power %s and my rank is
-  //          %d and " "received data from %d. \n", s, rank, sender);
+  //          "
+  //          "%d and received data from %d whose hostname is %s. \n",
+  //          s, rank, sender, recv_from_hostname);
   if (s == NULL || recv_from_hostname == NULL) {
     flux_log_error(h, "Flux Unpack resulted in null items, exiting");
     return;
@@ -58,9 +60,8 @@ void flux_pwr_monitor_collect_power_cb(flux_t *h, flux_msg_handler_t *mh,
     // Non zero ranks forward the rpc cal to their parents until, it reaches
     // root.
     flux_future_t *f =
-        flux_rpc_pack(h,                            // flux_t *h
-                      "flux_pwr_mgr.collect_power", // char *topic
-
+        flux_rpc_pack(h,                                // flux_t *h
+                      "flux_pwr_monitor.collect_power", // char *topic
                       FLUX_NODEID_UPSTREAM, // uint32_t nodeid (FLUX_NODEID_ANY,
                       FLUX_RPC_NORESPONSE,  // int flags (FLUX_RPC_NORESPONSE,,
                       "{s:s,s:I,s:s}", "power_data", s, "rank", sender,
@@ -72,7 +73,6 @@ void flux_pwr_monitor_collect_power_cb(flux_t *h, flux_msg_handler_t *mh,
     // flux_log(h, LOG_CRIT, "ZERO %s:%d Rank %d has sample=%d \
     //   node_value=%s and host %s .\n",
     //          __FILE__, __LINE__, rank, sample_id, s, recv_from_hostname);
-    // Get timestamp
     if (root_all_node_data == NULL) {
       flux_log_error(h, "%s: Error:Root All node Data is not initalized ",
                      __FUNCTION__);
@@ -140,7 +140,13 @@ static void timer_handler(flux_reactor_t *r, flux_watcher_t *w, int revents,
 
     // Go off and take your measurement.
     ret = variorum_get_node_power_json(&s);
-
+    // sprintf(s,
+    //         "{\"host\": \"tioga24\", \"timestamp\": 1687361476882052, "
+    //         "\"power_cpu_watts_socket_0\": 115.166, "
+    //         "\"power_gpu_watts_socket_0\": -1.0,
+    //         \"power_mem_watts_socket_0\": "
+    //         "-1.0, \"power_node_watts\": 115.166}");
+    // ret = 0;
     if (ret == 0) {
       sample_id++;
 
@@ -217,24 +223,28 @@ response_power_data *get_response_power_data(flux_t *h, const char *hostname,
 
     root_node_level_info *node_info = root_all_node_data[i];
     if (node_info != NULL) {
+      if (node_info->hostname != NULL) {
 
-      flux_log(h, LOG_CRIT,
-               "Gettinf response power data for hostname %s and comapring it "
-               "with stored data with hostname %s \n",
-               hostname, node_info->hostname);
-      if (strcmp(hostname, node_info->hostname) == 0) {
-        response_power_data *power_data;
-        power_data = get_agg_power_data(node_info->power_data, hostname,
-                                        start_time, end_time, sampling_rate);
-        if (power_data == NULL) {
-          flux_log_error(h, "Unable to get aggregrate data for hostname: %s",
-                         hostname);
-          return NULL;
+        flux_log(h, LOG_CRIT,
+                 "Gettinf response power data for hostname %s and comapring it "
+                 "with stored data with hostname %s \n",
+                 hostname, node_info->hostname);
+        if (strcmp(hostname, node_info->hostname) == 0) {
+          response_power_data *power_data;
+          power_data = get_agg_power_data(node_info->power_data, hostname,
+                                          start_time, end_time);
+          if (power_data == NULL) {
+            flux_log_error(h, "Unable to get aggregrate data for hostname: %s",
+                           hostname);
+            return NULL;
+          }
+          return power_data;
         }
-        return power_data;
+      } else {
+
+        flux_log(h, LOG_CRIT, "ZERO: NULL Hostname");
       }
     } else {
-
       flux_log(h, LOG_CRIT, "ZERO:No Node Info found for index: %d\n", i);
     }
   }
@@ -259,13 +269,13 @@ void flux_pwr_monitor_get_node_power(flux_t *h, flux_msg_handler_t *mh,
 
   flux_log(h, LOG_CRIT, "Z:E:R:O:My rank: %d\n", rank);
   if (rank == 0) {
-    uint32_t start_time, end_time;
+    uint64_t start_time, end_time;
     json_t *node_list;
     json_t *node_hostname;
     size_t index;
     size_t num_nodes_data_present = 0;
     response_power_data **power_data_nodes;
-    if (flux_request_unpack(msg, NULL, "{s:i,s:i,s:o}", "start_time",
+    if (flux_request_unpack(msg, NULL, "{s:I,s:I,s:o}", "start_time",
                             &start_time, "end_time", &end_time, "nodelist",
                             &node_list) < 0) {
       flux_log_error(
@@ -279,8 +289,8 @@ void flux_pwr_monitor_get_node_power(flux_t *h, flux_msg_handler_t *mh,
       return;
     }
     flux_log(h, LOG_CRIT,
-             "Z:E:R:O Got request for get node power with start_time %d and "
-             "endtime: %d\n",
+             "Z:E:R:O Got request for get node power with start_time %ld and "
+             "endtime: %ld\n",
              start_time, end_time);
     size_t node_list_size = json_array_size(node_list);
     power_data_nodes = malloc(sizeof(response_power_data *) * node_list_size);
@@ -301,8 +311,8 @@ void flux_pwr_monitor_get_node_power(flux_t *h, flux_msg_handler_t *mh,
       } else {
         flux_log(
             h, LOG_CRIT,
-            "Z:E:R:O flux_pwr_monitor.get RPC with start_time %d, end_time "
-            "%d and host_name containing %s \n",
+            "Z:E:R:O flux_pwr_monitor.get RPC with start_time %ld, end_time "
+            "%ld and host_name containing %s \n",
 
             start_time, end_time, hostname);
         response_power_data *power_data =
@@ -316,19 +326,32 @@ void flux_pwr_monitor_get_node_power(flux_t *h, flux_msg_handler_t *mh,
     }
     flux_log(h, LOG_CRIT, "Z:E:R:O:Power data nodes : %ld\n",
              num_nodes_data_present);
+
     json_t *power_payload = json_array();
     for (int i = 0; i < num_nodes_data_present; i++) {
+      flux_log(h, LOG_CRIT,
+               "Z:E:R:O:Power data nodes start_time: %ld end_time %ld\n",
+               power_data_nodes[i]->start_time, power_data_nodes[i]->end_time);
       json_t *data_obj =
-          json_pack("{s:s,s:b,s:{s:f, s:f,s:f,s:f}}", "hostname",
+          json_pack("{s:s,s:b,s:{s:f, s:f,s:f,s:f,s:I,s:I}}", "hostname",
                     power_data_nodes[i]->hostname, "full_data_present",
                     power_data_nodes[i]->full_data_present, "node_power_data",
                     "node_power", power_data_nodes[i]->agg_node_power,
                     "cpu_power", power_data_nodes[i]->agg_cpu_power,
                     "gpu_power", power_data_nodes[i]->agg_gpu_power,
-                    "mem_power", power_data_nodes[i]->agg_mem_power);
+                    "mem_power", power_data_nodes[i]->agg_mem_power,
+                    "result_start_time", power_data_nodes[i]->start_time,
+                    "result_end_time", power_data_nodes[i]->end_time);
+      // "data_start_time", power_data_nodes[i]->start_time,
+      // "data_end_time", power_data_nodes[i]->end_time);
       json_array_append_new(power_payload, data_obj);
     }
-
+    /** The JSON response would be something like this:
+    {start_time:requested_start_time,end_time:"{requested end time},data:
+    [{hostname:"hostname","full_data_present":{whether data for time range is
+    availabe or not}, node_power_data:{node_power:{Node power reported by
+    variorum},cpu_power:{CPU power reported by variorum}}}}]
+    **/
     if (flux_respond_pack(h, msg, "{s:I,s:I,s:O}", "start_time", start_time,
                           "end_time", end_time, "data", power_payload) < 0) {
       flux_log_error(
@@ -343,6 +366,11 @@ void flux_pwr_monitor_get_node_power(flux_t *h, flux_msg_handler_t *mh,
   }
 }
 
+/**
+ * flux_pwr_monitor.get_node_power: can be said is the user facing API that
+ *would be used by end client to get power data. flux_pwr_monitor.collect_power:
+ *is the internal API used by nodes to communicate with root.
+ **/
 static const struct flux_msg_handler_spec htab[] = {
     {FLUX_MSGTYPE_REQUEST, "flux_pwr_monitor.get_node_power",
      flux_pwr_monitor_get_node_power, 0},
@@ -377,12 +405,15 @@ int mod_main(flux_t *h, int argc, char **argv) {
       exit(EXIT_FAILURE);
     }
   }
+
   if (buffer_size == 0)
     buffer_size = 1000000;
   if (sampling_rate == 0)
     sampling_rate = 5;
   if (rank == 0) {
     if (size != 0) {
+      // As user provide a total buffer size, we are getting the per node
+      // circuar buffer size.
       node_level_circular_buffer_size = (size_t)ceil(buffer_size / size);
     }
     root_all_node_data = malloc(sizeof(root_node_level_info *) * size);

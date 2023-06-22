@@ -16,8 +16,8 @@ response_power_data *response_power_data_new(const char *hostname,
     free(power_data);
     return NULL;
   }
-  power_data->start_time = start_time;
-  power_data->end_time = end_time;
+  power_data->start_time = UINT64_MAX;
+  power_data->end_time = 0;
   power_data->full_data_present = true;
   power_data->agg_cpu_power = 0;
   power_data->agg_gpu_power = 0;

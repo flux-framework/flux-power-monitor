@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200809L
 #include "node_power_info.h"
 #include <stdlib.h>
 #include <string.h>
@@ -5,6 +6,10 @@
 node_power_info *node_power_info_new(const char *hostname,
                                      const char *power_info,
                                      uint64_t timestamp) {
+  if (hostname == NULL)
+    return NULL;
+  if (power_info == NULL)
+    return NULL;
   node_power_info *power_data =
       (node_power_info *)malloc(sizeof(node_power_info));
   if (power_data == NULL)

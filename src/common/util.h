@@ -7,8 +7,8 @@
 #include <inttypes.h>
 
 response_power_data *get_agg_power_data(circular_buffer_t *buffer,
-                                        const char *hostname, uint64_t start_time,
-                                        uint64_t end_time, int sampling_rate);
+                                        const char *hostname,
+                                        uint64_t start_time, uint64_t end_time);
 void response_power_data_destroy(response_power_data *data);
 
 #endif

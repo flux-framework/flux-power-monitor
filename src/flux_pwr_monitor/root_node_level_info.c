@@ -1,8 +1,13 @@
+#define _POSIX_C_SOURCE 200809L
 #include "root_node_level_info.h"
 root_node_level_info *root_node_data_new(int sender,
                                          const char *recv_from_hostname,
                                          size_t buffer_size,
                                          destructor_fn func) {
+  if (recv_from_hostname == NULL)
+    return NULL;
+  if (func == NULL)
+    return NULL;
   root_node_level_info *root_all_node_data;
   root_all_node_data = malloc(sizeof(root_node_level_info));
   if (root_all_node_data == NULL)
