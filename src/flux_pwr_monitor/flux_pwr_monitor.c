@@ -16,7 +16,7 @@
 #include <sys/time.h>
 #include <unistd.h>
 
-static root_node_level_info **root_all_node_data;
+static circular_buffer_t *per_node_circular_buffer = NULL;
 static uint32_t sample_id = 0;
 static uint32_t rank, size;
 static uint32_t sampling_rate, buffer_size;
@@ -73,7 +73,7 @@ void flux_pwr_monitor_collect_power_cb(flux_t *h, flux_msg_handler_t *mh,
     // flux_log(h, LOG_CRIT, "ZERO %s:%d Rank %d has sample=%d \
     //   node_value=%s and host %s .\n",
     //          __FILE__, __LINE__, rank, sample_id, s, recv_from_hostname);
-    if (root_all_node_data == NULL) {
+    if (current_node_data == NULL) {
       flux_log_error(h, "%s: Error:Root All node Data is not initalized ",
                      __FUNCTION__);
       return;
@@ -93,20 +93,20 @@ void flux_pwr_monitor_collect_power_cb(flux_t *h, flux_msg_handler_t *mh,
     }
 
     // Storing power Info data based on the original node's nodeId
-    if (root_all_node_data[sender] == NULL) {
-      root_all_node_data[sender] = root_node_data_new(
+    if (current_node_data[sender] == NULL) {
+      current_node_data[sender] = root_node_data_new(
           sender, recv_from_hostname, node_level_circular_buffer_size,
           &node_power_info_destroy);
 
-      if (root_all_node_data[sender] == NULL) {
+      if (current_node_data[sender] == NULL) {
         flux_log_error(h, "%s: Error in Creating Root Node Power Data",
                        __FUNCTION__);
         return;
       }
     }
 
-    if (write_data_to_root_node_info(h, root_all_node_data[sender],
-                                     power_data) < 0)
+    if (write_data_to_root_node_info(h, current_node_data[sender], power_data) <
+        0)
 
       flux_log_error(h, "Error in writing data for Node with rank:%d \n",
                      sender);
@@ -140,73 +140,37 @@ static void timer_handler(flux_reactor_t *r, flux_watcher_t *w, int revents,
 
     // Go off and take your measurement.
     ret = variorum_get_node_power_json(&s);
-    // sprintf(s,
-    //         "{\"host\": \"tioga24\", \"timestamp\": 1687361476882052, "
-    //         "\"power_cpu_watts_socket_0\": 115.166, "
-    //         "\"power_gpu_watts_socket_0\": -1.0,
-    //         \"power_mem_watts_socket_0\": "
-    //         "-1.0, \"power_node_watts\": 115.166}");
-    // ret = 0;
     if (ret == 0) {
       sample_id++;
+      struct timeval tv;
+      uint64_t ts;
+      gettimeofday(&tv, NULL);
+      ts = tv.tv_sec * (uint64_t)1000000 + tv.tv_usec;
+      node_power_info *power_data = node_power_info_new(my_hostname, s, ts);
+      if (power_data == NULL) {
+        flux_log_error(h, "%s: Error in Creating Node Power Info Object",
+                       __FUNCTION__);
+        return;
+      }
 
-      // flux_log(h, LOG_CRIT,
-      //          "INFO: I am rank %d with power %s on sample %d and host %s "
-      //          "parent_nodeId is :%d \n",
-      //          rank, s, sample_id, my_hostname, FLUX_NODEID_UPSTREAM);
-      //
-      // Then....
-      // Just send the message.  These ranks don't do any combining.
-      if (rank > 0) {
-        flux_future_t *f = flux_rpc_pack(
-            h,                                // flux_t *h
-            "flux_pwr_monitor.collect_power", // char *topic
-            FLUX_NODEID_UPSTREAM, FLUX_RPC_NORESPONSE, "{s:s,s:I,s:s}",
-            "power_data", s, "rank", rank, "hostname",
-            my_hostname // int flags (FLUX_RPC_NORESPONSE,
-        );
+      if (current_node_data == NULL) {
+        current_node_data = root_node_data_new(rank, my_hostname,
+                                               node_level_circular_buffer_size,
+                                               &node_power_info_destroy);
 
-        if (f == NULL) {
-          flux_log_error(h, "%s: flux_respond_error", __FUNCTION__);
-          free(s);
-          return;
-        }
-
-        flux_future_destroy(f);
-      } else if (rank == 0) {
-        struct timeval tv;
-        uint64_t ts;
-        gettimeofday(&tv, NULL);
-        ts = tv.tv_sec * (uint64_t)1000000 + tv.tv_usec;
-        node_power_info *power_data = node_power_info_new(my_hostname, s, ts);
-        if (power_data == NULL) {
-          flux_log_error(h, "%s: Error in Creating Node Power Info Object",
+        if (current_node_data == NULL) {
+          flux_log_error(h, "%s: Error in Creating Root Node Power Data",
                          __FUNCTION__);
           return;
         }
-
-        if (root_all_node_data[rank] == NULL) {
-          root_all_node_data[rank] = root_node_data_new(
-              rank, my_hostname, node_level_circular_buffer_size,
-              &node_power_info_destroy);
-
-          if (root_all_node_data[rank] == NULL) {
-            flux_log_error(h, "%s: Error in Creating Root Node Power Data",
-                           __FUNCTION__);
-            return;
-          }
-        }
-
-        // flux_log(h, LOG_CRIT,
-        //          "ZERO: Writing data for sender:%d whose hostname is %s\n",
-        //          sender, recv_from_hostname);
-        if (write_data_to_root_node_info(h, root_all_node_data[rank],
-                                         power_data) < 0)
-
-          flux_log_error(h, "Error in writing data for Node with rank:%d \n",
-                         rank);
       }
+
+      if (write_data_to_root_node_info(h, current_node_data, power_data) < 0)
+
+        flux_log_error(h, "Error in writing data for Node with rank:%d \n",
+                       rank);
     }
+    // }
   }
   free(s);
 }
@@ -221,7 +185,7 @@ response_power_data *get_response_power_data(flux_t *h, const char *hostname,
 
   for (uint32_t i = 0; i < size; i++) {
 
-    root_node_level_info *node_info = root_all_node_data[i];
+    root_node_level_info *node_info = current_node_data;
     if (node_info != NULL) {
       if (node_info->hostname != NULL) {
 
@@ -371,11 +335,23 @@ void flux_pwr_monitor_get_node_power(flux_t *h, flux_msg_handler_t *mh,
  *would be used by end client to get power data. flux_pwr_monitor.collect_power:
  *is the internal API used by nodes to communicate with root.
  **/
+
+void flux_pwr_monitor_request_power_data_from_node(flux_t *h,
+                                                   flux_msg_handler_t *mh,
+                                                   const flux_msg_t *msg,
+                                                   void *arg) {}
+
+void flux_pwr_monitor_response_power_data(flux_t *h, flux_msg_handler_t *mh,
+                                          const flux_msg_t *msg, void *arg) {}
 static const struct flux_msg_handler_spec htab[] = {
     {FLUX_MSGTYPE_REQUEST, "flux_pwr_monitor.get_node_power",
      flux_pwr_monitor_get_node_power, 0},
     {FLUX_MSGTYPE_REQUEST, "flux_pwr_monitor.collect_power",
      flux_pwr_monitor_collect_power_cb, 0},
+    {FLUX_MSGTYPE_REQUEST, "flux_pwr_monitor.request_power_data_from_node",
+     flux_pwr_monitor_request_power_data_from_node, 0},
+    {FLUX_MSGTYPE_REQUEST, "flux_pwr_monitor.response_power_data",
+     flux_pwr_monitor_response_power_data, 0},
     FLUX_MSGHANDLER_TABLE_END,
 };
 
@@ -410,18 +386,7 @@ int mod_main(flux_t *h, int argc, char **argv) {
     buffer_size = 1000000;
   if (sampling_rate == 0)
     sampling_rate = 5;
-  if (rank == 0) {
-    if (size != 0) {
-      // As user provide a total buffer size, we are getting the per node
-      // circuar buffer size.
-      node_level_circular_buffer_size = (size_t)ceil(buffer_size / size);
-    }
-    root_all_node_data = malloc(sizeof(root_node_level_info *) * size);
-    if (root_all_node_data == NULL)
-      return 1;
-    for (uint32_t i = 0; i < size; i++)
-      root_all_node_data[i] = NULL;
-  }
+  node_level_circular_buffer_size = (size_t)ceil(buffer_size);
   flux_msg_handler_t **handlers = NULL;
 
   // Let all ranks set this up.
@@ -439,18 +404,11 @@ int mod_main(flux_t *h, int argc, char **argv) {
   assert(flux_reactor_run(flux_get_reactor(h), 0) >= 0);
 
   // On unload, shutdown the handlers.
-  if (rank == 0) {
-    for (uint32_t i = 0; i < size; i++) {
-      printf("%d i is \n", i);
-      if (root_all_node_data != NULL) {
-        if (root_all_node_data[i] != NULL)
-          root_node_level_info_destroy(root_all_node_data[i]);
-        root_all_node_data[i] = NULL;
-      }
-    }
-    free(root_all_node_data);
-    flux_msg_handler_delvec(handlers);
+  if (current_node_data != NULL) {
+    root_node_level_info_destroy(current_node_data);
+    current_node_data = NULL;
   }
+  flux_msg_handler_delvec(handlers);
 
   return 0;
 }
