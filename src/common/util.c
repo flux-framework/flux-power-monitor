@@ -112,3 +112,84 @@ response_power_data *get_agg_power_data(circular_buffer_t *buffer,
     power_data->agg_mem_power /= power_data->number_of_samples;
   return power_data;
 }
+
+
+void getNodeList(char *nodeData, char ***hostList, int *size) {
+    char *hostname;
+    char *ranges;
+
+    // Split the nodeData
+    hostname = strtok(nodeData, "[");
+    if (hostname == NULL) {
+        fprintf(stderr, "Failed to split nodeData by '['.\n");
+        return;
+    }
+    ranges = strtok(NULL, "[");
+    if (ranges == NULL) {
+        fprintf(stderr, "Failed to split nodeData by '['.\n");
+        return;
+    }
+    
+    // Trim the trailing ']' from ranges
+    if (ranges[strlen(ranges)-1] != ']') {
+        fprintf(stderr, "Failed to parse range correctly.\n");
+        return;
+    }
+    ranges[strlen(ranges)-1] = 0;
+
+    // Split ranges by comma
+    char *range = strtok(ranges, ",");
+    while (range != NULL) {
+        if (strchr(range, '-') != NULL) {
+            int start, end;
+            if (sscanf(range, "%d-%d", &start, &end) != 2) {
+                fprintf(stderr, "Failed to parse range correctly.\n");
+                return;
+            }
+
+            for (int i = start; i <= end; i++) {
+                // Resize the hostList array
+                *hostList = realloc(*hostList, (*size + 1) * sizeof(char *));
+                if (*hostList == NULL) {
+                    fprintf(stderr, "Failed to allocate memory.\n");
+                    return;
+                }
+                
+                // Allocate memory for the new string
+                (*hostList)[*size] = malloc(strlen(hostname) + 10);  // enough for the number
+                if ((*hostList)[*size] == NULL) {
+                    fprintf(stderr, "Failed to allocate memory.\n");
+                    return;
+                }
+                
+                // Create the string
+                sprintf((*hostList)[*size], "%s%d", hostname, i);
+
+                // Increment the size
+                (*size)++;
+            }
+        } else {
+            // Resize the hostList array
+            *hostList = realloc(*hostList, (*size + 1) * sizeof(char *));
+            if (*hostList == NULL) {
+                fprintf(stderr, "Failed to allocate memory.\n");
+                return;
+            }
+            
+            // Allocate memory for the new string
+            (*hostList)[*size] = malloc(strlen(hostname) + 10);  // enough for the number
+            if ((*hostList)[*size] == NULL) {
+                fprintf(stderr, "Failed to allocate memory.\n");
+                return;
+            }
+            
+            // Create the string
+            sprintf((*hostList)[*size], "%s%s", hostname, range);
+            
+            // Increment the size
+            (*size)++;
+        }
+
+        range = strtok(NULL, ",");
+    }
+}
