@@ -22,7 +22,7 @@ static uint32_t rank, size;
 static uint32_t sampling_rate, buffer_size;
 static char node_hostname[HOSTNAME_SIZE];
 static char **hostname_list;
-#define MY_MOD_NAME "flux_pwr_mgr"
+#define MY_MOD_NAME "flux_pwr_monitor"
 const char default_service_name[] = MY_MOD_NAME;
 
 static void timer_handler(flux_reactor_t *r, flux_watcher_t *w, int revents,
@@ -130,7 +130,7 @@ response_power_data *get_response_power_data(flux_t *h, const char *hostname,
           flux_log_error(h, "error responding to "
                             "flux_pwr_montior.get_node_power request");
           return NULL;
-        } 
+        }
           return power_data;
       }
     }
