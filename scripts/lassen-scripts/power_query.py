@@ -8,8 +8,8 @@ from flux.job.JobID import id_parse
 def getJobInfo(handle, jobId):
     jobId = id_parse(jobId)
     print(jobId)
-    return flux.job.get_job(handle, jobId)
-
+    # print(flux.job.JobList(handle,ids=[jobId]).fetch_jobs().get())
+    return flux.job.JobList(handle,ids=[jobId]).jobs()[0]
 
 def getNodeList(nodeData):
     hostname, ranges = nodeData.strip().split("[")
@@ -48,10 +48,15 @@ def main():
     if jobInfo is None:
         print("No Job Data found")
         return None
-    hostList = getNodeList(jobInfo["nodelist"])
+    # hostList = getNodeList(jobInfo["nodelist"])
+    
+    hostList= getNodeList(jobInfo.__getattr__("nodelist"))
     try:
-        startTime = getJobStartTime(jobInfo)
-        endTime = getjobEndTime(jobInfo)
+        # startTime = getJobStartTime(jobInfo)
+        startTime=int(jobInfo.__getattr__("t_run")*1e6)
+        endTime=int(jobInfo.__getattr__("t_cleanup")*1e6)
+        print(startTime,endTime)
+        # endTime = getjobEndTime(jobInfo)
         if startTime == 0 or endTime == 0:
             raise Exception
     except:

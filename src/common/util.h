@@ -11,4 +11,5 @@ response_power_data *get_agg_power_data(circular_buffer_t *buffer,
                                         uint64_t start_time, uint64_t end_time);
 void response_power_data_destroy(response_power_data *data);
 
+void getNodeList(char *nodeData, char ***hostList, int *size);
 #endif

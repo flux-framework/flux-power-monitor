@@ -82,6 +82,7 @@ AC_CHECK_FUNCS([gethostname strdup])
 AC_CONFIG_FILES(\
                 Makefile \
                 src/flux_pwr_monitor/Makefile \
-                src/common/Makefile
+                src/flux_pwr_manager/Makefile \
+                src/common/Makefile 
               )
 AC_OUTPUT

@@ -28,12 +28,12 @@ def getNodeList(nodeData):
 
 # Time decimal part is removed as the current power module have time resolution of seconds.
 def getJobStartTime(jobInfo):
-    return int(jobInfo["t_run"]*1e6)
+    return int(jobInfo["t_run"] * 1e6)
 
 
 # Cleanup time represents the time job cleanup phase begins, i.e. job has finished.
 def getjobEndTime(jobInfo):
-    return int(jobInfo["t_cleanup"]*1e6)
+    return int(jobInfo["t_cleanup"] * 1e6)
 
 
 def main():
@@ -42,40 +42,40 @@ def main():
     args = parser.parse_args()
     jobId = args.j
     h = flux.Flux()
-    # jobInfo = getJobInfo(h, jobId)
-    # #
-    # print(jobInfo)
-    # if jobInfo is None:
-    #     print("No Job Data found")
-    #     return None
-    # hostList = getNodeList(jobInfo["nodelist"])
-    # try:
-    #     startTime = getJobStartTime(jobInfo)
-    #     endTime = getjobEndTime(jobInfo)
-    #     if startTime == 0 or endTime == 0:
-    #         raise Exception
-    # except:
-    #     print("Issue in getting time value")
-    #     return
-    # print(
-    #     f"making an RPC call for start_time: {startTime}, end_time {endTime} and nodeList {hostList}"
-    # )
-    # print(
-    #     h.rpc(
-    #         "flux_pwr_monitor.get_node_power",
-    #         {
-    #             "start_time": startTime,
-    #             "end_time": endTime,
-    #             "nodelist": hostList,
-    #         },
-    #         nodeid=0,
-    #         flags=flux.constants.FLUX_RPC_STREAMING,
-    #     ).get()
-    # )
+    jobInfo = getJobInfo(h, jobId)
+    #
+    print(jobInfo)
+    if jobInfo is None:
+        print("No Job Data found")
+        return None
+    hostList = getNodeList(jobInfo["nodelist"])
+    try:
+        startTime = getJobStartTime(jobInfo)
+        endTime = getjobEndTime(jobInfo)
+        if startTime == 0 or endTime == 0:
+            raise Exception
+    except:
+        print("Issue in getting time value")
+        return
+    print(
+        f"making an RPC call for start_time: {startTime}, end_time {endTime} and nodeList {hostList}"
+    )
     print(
         h.rpc(
             "flux_pwr_monitor.get_node_power",
-            {"start_time": 0, "end_time": 10, "nodelist": ["corona286"]},
+            {
+                "start_time": startTime,
+                "end_time": endTime,
+                "nodelist": hostList,
+            },
+            nodeid=0,
+            flags=flux.constants.FLUX_RPC_STREAMING,
+        ).get()
+    )
+    print(
+        h.rpc(
+            "flux_pwr_monitor.get_node_power",
+            {"start_time": 0, "end_time": 10, "nodelist": ["tioga23"]},
             nodeid=0,
             flags=flux.constants.FLUX_RPC_STREAMING,
         ).get()

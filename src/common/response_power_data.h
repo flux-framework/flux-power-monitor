@@ -2,11 +2,14 @@
 #define RESPONSE_POWER_DATA_H
 #include <czmq.h>
 #include <inttypes.h>
+typedef enum { FULL, PARTIAL, NONE, STATUS_COUNT } DATA_PRESENCE_STATUS;
+extern const char *data_presence_string_literal[STATUS_COUNT];
+const char *get_data_presence_string(DATA_PRESENCE_STATUS status);
 typedef struct {
-   char *hostname;
+  char *hostname;
   uint64_t start_time;
   uint64_t end_time;
-  bool full_data_present;
+  DATA_PRESENCE_STATUS data_presence;
   double agg_cpu_power;
   double agg_gpu_power;
   double agg_mem_power;
@@ -14,6 +17,7 @@ typedef struct {
   int number_of_samples;
 } response_power_data;
 #endif
-response_power_data *
-response_power_data_new(const char *hostname, uint64_t start_time, uint64_t end_time);
+response_power_data *response_power_data_new(const char *hostname,
+                                             uint64_t start_time,
+                                             uint64_t end_time);
 void response_power_data_destroy(response_power_data *data);
