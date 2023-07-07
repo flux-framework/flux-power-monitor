@@ -7,22 +7,23 @@ from flux.job.JobID import id_parse
 
 def getJobInfo(handle, jobId):
     jobId = id_parse(jobId)
-    print(jobId)
     return flux.job.get_job(handle, jobId)
 
 
 def getNodeList(nodeData):
-    hostname, ranges = nodeData.strip().split("[")
-    ranges = ranges.rstrip("]").split(",")
+    if "[" in nodeData:
+        hostname, ranges = nodeData.strip().split("[")
+        ranges = ranges.rstrip("]").split(",")
 
-    hostList = []
-    for range_ in ranges:
-        if "-" in range_:
-            start, end = map(int, range_.split("-"))
-            hostList.extend(f"{hostname}{i}" for i in range(start, end + 1))
-        else:
-            hostList.append(f"{hostname}{range_}")
-
+        hostList = []
+        for range_ in ranges:
+            if "-" in range_:
+                start, end = map(int, range_.split("-"))
+                hostList.extend(f"{hostname}{i}" for i in range(start, end + 1))
+            else:
+                hostList.append(f"{hostname}{range_}")
+    else:
+        hostList = [nodeData]
     return hostList
 
 
@@ -44,7 +45,6 @@ def main():
     h = flux.Flux()
     jobInfo = getJobInfo(h, jobId)
     #
-    print(jobInfo)
     if jobInfo is None:
         print("No Job Data found")
         return None
@@ -72,14 +72,14 @@ def main():
             flags=flux.constants.FLUX_RPC_STREAMING,
         ).get()
     )
-    print(
-        h.rpc(
-            "flux_pwr_monitor.get_node_power",
-            {"start_time": 0, "end_time": 10, "nodelist": ["tioga23"]},
-            nodeid=0,
-            flags=flux.constants.FLUX_RPC_STREAMING,
-        ).get()
-    )
+    # print(
+    #     h.rpc(
+    #         "flux_pwr_monitor.get_node_power",
+    #         {"start_time": 0, "end_time": 10, "nodelist": ["tioga23"]},
+    #         nodeid=0,
+    #         flags=flux.constants.FLUX_RPC_STREAMING,
+    #     ).get()
+    # )
     # print(
     #     h.rpc(
     #         "flux_pwr_monitor.get_node_power",

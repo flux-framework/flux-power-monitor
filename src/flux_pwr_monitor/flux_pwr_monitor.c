@@ -135,7 +135,7 @@ response_power_data *get_response_power_data(flux_t *h, const char *hostname,
 error:
   if (flux_respond_error(
           h, NULL, errno,
-          "Error:unable to unpack flux_power_monitor.collect_power ") < 0)
+          "Error:unable to unpack flux_power_monitor.request_power_data_from_node ") < 0)
     flux_log_error(h, "%s: flux_respond_error", __FUNCTION__);
   return NULL;
 }
@@ -217,8 +217,6 @@ void flux_pwr_monitor_get_node_power(flux_t *h, flux_msg_handler_t *mh,
                     "mem_power", power_data_nodes[i]->agg_mem_power,
                     "result_start_time", power_data_nodes[i]->start_time,
                     "result_end_time", power_data_nodes[i]->end_time);
-      // "data_start_time", power_data_nodes[i]->start_time,
-      // "data_end_time", power_data_nodes[i]->end_time);
       json_array_append_new(power_payload, data_obj);
     }
     /** The JSON response would be something like this:
@@ -244,8 +242,6 @@ void flux_pwr_monitor_get_node_power(flux_t *h, flux_msg_handler_t *mh,
 /**
  * flux_pwr_monitor.get_node_power: can be said is the user facing API that
  *would be used by end client to get power data.
- *flux_pwr_monitor.collect_power: is the internal API used by nodes to
- *communicate with root.
  **/
 void flux_pwr_monitor_request_power_data_from_node(flux_t *h,
                                                    flux_msg_handler_t *mh,
@@ -261,12 +257,12 @@ void flux_pwr_monitor_request_power_data_from_node(flux_t *h,
                           "end_time", &end_time, "node_hostname",
                           &node_name_from_remote) < 0) {
     flux_log_error(
-        h, "error responding to flux_pwr_montior.get_node_power request");
+        h, "error unpack flux_pwr_montior.get_node_power request");
     if (flux_respond_error(
             h, msg, errno,
-            "error responding to flux_pwr_montior.get_node_power request") < 0)
+            "error unpack flux_pwr_montior.get_node_power request") < 0)
       flux_log_error(
-          h, "error responding to flux_pwr_montior.get_node_power request");
+          h, "error unpack flux_pwr_montior.get_node_power request");
     return;
   }
 
@@ -299,7 +295,7 @@ void flux_pwr_monitor_request_power_data_from_node(flux_t *h,
   response_power_data_destroy(power_data);
 }
 // Currently for decentralized version of the monitor. The request for data
-// would contain a nodelist. Currently root has no inforamtion about the
+// would contain a nodelist. Root has no inforamtion about the
 // mapping between rank and hostnames. To map that relationship each node in
 // the overlay tree sends an RPC containing its hostname to the root.
 void flux_pwr_monitor_get_hostname(flux_t *h, flux_msg_handler_t *mh,
@@ -322,7 +318,7 @@ void flux_pwr_monitor_get_hostname(flux_t *h, flux_msg_handler_t *mh,
   } else if (rank == 0) {
     hostname_list[sender] = strdup(hostname);
     if (hostname_list[sender] == NULL) {
-      flux_log_error(h, "Error in copying string");
+      flux_log_error(h, "Error in strdup hostname");
     }
   }
 
@@ -330,7 +326,7 @@ error:
   flux_log_error(h, "Unable to unpack hostname request");
   if (flux_respond_error(
           h, msg, errno,
-          "Error:unable to unpack flux_power_monitor.collect_power ") < 0)
+          "Error:unable to unpack flux_power_monitor.get_hostname ") < 0)
     flux_log_error(h, "%s: flux_respond_error", __FUNCTION__);
 }
 static const struct flux_msg_handler_spec htab[] = {
@@ -421,4 +417,4 @@ int mod_main(flux_t *h, int argc, char **argv) {
   return 0;
 }
 
-MOD_NAME(MY_MOD_NAME);
+// MOD_NAME(MY_MOD_NAME);
