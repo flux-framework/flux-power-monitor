@@ -15,7 +15,7 @@
 static job_data **job_data_list;
 static uint32_t rank, size;
 #define MY_MOD_NAME "flux_pwr_manager"
-static dynamic_job_map* job_map_data;
+static dynamic_job_map *job_map_data;
 const char default_service_name[] = MY_MOD_NAME;
 // static const int NOFLAGS=0;
 
@@ -40,6 +40,12 @@ enum {
   MAX_NODE_EDGES,
   MAX_CHILDREN = 2,
 };
+typedef enum {
+  GPU_AWARE,
+  POWER_AWARE,
+  POWER_PERF_AWARE,
+
+} POWER_POLICY;
 
 static int dag[MAX_NODE_EDGES];
 
@@ -171,6 +177,10 @@ err:
     flux_log_error(h, "flux_respond_error");
 }
 
+void get_job_power(job_data* data){
+
+}
+
 void get_flux_jobs(flux_t *h) {
   flux_future_t *f;
   json_t *jobs;
@@ -187,8 +197,8 @@ void get_flux_jobs(flux_t *h) {
     flux_log(h, LOG_CRIT, "Error in unpacking job-list Request");
     return;
   }
-  job_map_data=init_job_map(100);
-  parse_jobs(jobs, h,job_map_data);
+  job_map_data = init_job_map(100);
+  parse_jobs(jobs, h, job_map_data);
   json_decref(jobs);
   flux_future_destroy(f);
 }
