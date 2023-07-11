@@ -2,7 +2,9 @@
 #include "config.h"
 #endif
 #include "dynamic_job_map.h"
+#include "job_power_util.h"
 #include "job_data.h"
+#include "power_policy.h"
 #include "util.h"
 #include "variorum.h"
 #include <assert.h>
@@ -10,9 +12,9 @@
 #include <flux/core.h>
 #include <jansson.h>
 #include <stdint.h>
+#include <time.h>
 #include <unistd.h>
-
-static job_data **job_data_list;
+#define JOB_MAP_SIZE 100
 static uint32_t rank, size;
 #define MY_MOD_NAME "flux_pwr_manager"
 static dynamic_job_map *job_map_data;
@@ -40,12 +42,6 @@ enum {
   MAX_NODE_EDGES,
   MAX_CHILDREN = 2,
 };
-typedef enum {
-  GPU_AWARE,
-  POWER_AWARE,
-  POWER_PERF_AWARE,
-
-} POWER_POLICY;
 
 static int dag[MAX_NODE_EDGES];
 
@@ -56,83 +52,6 @@ static double gpu_power_acc = 0.0;  // GPU power accumulator
 static double cpu_power_acc = 0.0;  // CPU power accumulator
 static double mem_power_acc = 0.0;  // Memory power accumulator
 
-void free_resources(char **node_hostname_list, int size,
-                    job_data **job_data_list, int jobs_list_size) {
-  for (int i = 0; i < size; i++) {
-    free(node_hostname_list[i]);
-  }
-  free(node_hostname_list);
-  for (int j = 0; j < jobs_list_size; j++) {
-    job_data_destroy(job_data_list[j]);
-  }
-  free(job_data_list);
-}
-
-job_map_entry *find_job(job_map_entry *job_map, const char *jobId,
-                        size_t job_map_size) {
-  for (size_t i = 0; i < job_map_size; i++) {
-    if (strcmp(job_map[i].jobId, jobId) == 0) {
-      return &job_map[i];
-    }
-  }
-  return NULL;
-}
-
-void handle_new_job(json_t *value, dynamic_job_map *job_map, flux_t *h) {
-  char **node_hostname_list = NULL;
-  int size = 0;
-
-  json_t *nodelist = json_object_get(value, "nodelist");
-  json_t *jobId_json = json_object_get(value, "jobId");
-
-  if (!json_is_string(nodelist) || !json_is_string(jobId_json)) {
-    flux_log(h, LOG_CRIT, "Unable get nodeList or jobId from job");
-    return;
-  }
-
-  const char *str = json_string_value(nodelist);
-  const char *jobId = json_string_value(jobId_json);
-  if (!str || !jobId) {
-    flux_log(h, LOG_CRIT, "Error in sending job-list or jobId Request");
-    return;
-  }
-
-  getNodeList((char *)str, &node_hostname_list, &size);
-
-  job_map_entry job_entry = {
-      .jobId = strdup(jobId),
-      .data = job_data_new((char *)jobId, node_hostname_list, size)};
-  add_to_job_map(job_map, job_entry);
-
-  for (int i = 0; i < size; i++) {
-    free(node_hostname_list[i]);
-  }
-  free(node_hostname_list);
-}
-
-void parse_jobs(json_t *jobs, flux_t *h, dynamic_job_map *job_map) {
-  size_t index;
-  json_t *value;
-
-  // Create a new job map
-  dynamic_job_map *new_job_map = init_job_map(100);
-
-  // Now handle each new job and add them into new_job_map
-  json_array_foreach(jobs, index, value) {
-    handle_new_job(value, new_job_map, h);
-  }
-
-  // Free the memory used by the old job_map
-  for (size_t i = 0; i < job_map->size; i++) {
-    free(job_map->entries[i].jobId);
-    job_data_destroy(job_map->entries[i].data);
-  }
-  free(job_map->entries);
-  free(job_map);
-
-  // Assign the new_job_map to job_map
-  job_map = new_job_map;
-}
 
 void flux_pwr_mgr_set_powercap_cb(flux_t *h, flux_msg_handler_t *mh,
                                   const flux_msg_t *msg, void *arg) {
@@ -177,8 +96,34 @@ err:
     flux_log_error(h, "flux_respond_error");
 }
 
-void get_job_power(job_data* data){
+void handle_get_node_power_rpc(flux_future_t* f,void *args){
 
+}
+// Use flux_pwr_monitor to get power_data for job nodes
+void get_job_power(flux_t *h, job_data *job) {
+  // Getting the current time
+  struct timeval tv;
+  uint64_t current_time;
+  gettimeofday(&tv, NULL);
+  current_time = tv.tv_sec * (uint64_t)1000000 + tv.tv_usec;
+
+  // Calculating start_time (current_time - 30sec)
+  uint64_t start_time = current_time - 30 * 1e+9;
+
+  // Creating the nodelist array
+  json_t *nodelist = json_array();
+  for (int i = 0; i < job->num_of_nodes; i++) {
+    json_array_append_new(nodelist, json_string(job->node_hostname_list[i]));
+  }
+
+  flux_future_t *f;
+  if (!(f = flux_rpc_pack(h, "flux_pwr_monitor.get_node_power", 0, 0,
+                          "{s:I,s:I,s:I, s:o}", "start_time", start_time,
+                          "flux_jobId", job->jobId, "end_time", current_time,
+                          "nodelist", nodelist))) {
+    flux_log(h, LOG_CRIT, "Error in sending job-list Request");
+    return;
+  }
 }
 
 void get_flux_jobs(flux_t *h) {
@@ -197,8 +142,7 @@ void get_flux_jobs(flux_t *h) {
     flux_log(h, LOG_CRIT, "Error in unpacking job-list Request");
     return;
   }
-  job_map_data = init_job_map(100);
-  parse_jobs(jobs, h, job_map_data);
+  parse_jobs(h,jobs, job_map_data,JOB_MAP_SIZE);
   json_decref(jobs);
   flux_future_destroy(f);
 }

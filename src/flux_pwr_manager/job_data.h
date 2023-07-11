@@ -1,26 +1,21 @@
 #ifndef FLUX_JOB_DATA_H
 #define FLUX_JOB_DATA_H
-#include "circular_buffer.h"
-#include <stdint.h>
+#include "flux/core.h"
+#include "node_power_profile.h"
+#include "power_data.h"
+#define HANDLE_ERROR(msg)                                                      \
+  do {                                                                         \
+    fprintf(stderr, "%s\n", msg);                                              \
+    goto cleanup;                                                              \
+  } while (0)
 
-typedef struct {
-  double mem_power;
-  double node_power;
-  double cpu_power;
-  double gpu_power;
-  uint64_t timestamp;
-} power_data;
-
-
+#define PER_NODE_POWER_HISTORY 100
 typedef struct {
   char *jobId;
   int num_of_nodes;
   char **node_hostname_list;
-  power_data *job_current_power_data;
   power_data *job_agg_power_data;
-  circular_buffer_t *per_node_power_data;
-  power_data *per_node_powercap;
-
+  node_power_profile **node_power_profile_data;
 } job_data;
 
 job_data *job_data_new(char *jobId, char **node_hostname_list, int node_size);
