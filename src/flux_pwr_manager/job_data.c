@@ -3,6 +3,7 @@
 #include <string.h>
 #include <unistd.h>
 
+
 int create_node_power_profile(job_data *job) {
   job->node_power_profile_data =
       malloc(sizeof(node_power_profile *) * job->num_of_nodes);

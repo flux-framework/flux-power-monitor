@@ -3,7 +3,11 @@ AM_CPPFLAGS = -I$(top_srcdir)/src/common
 lib_LTLIBRARIES = \
 									flux_pwr_manager.la
 flux_pwr_manager_la_SOURCES = \
-											flux_pwr_manager.c 
+											flux_pwr_manager.c \
+											job_data.c \
+											node_power_profile.c \
+											dynamic_job_map.c \
+											job_power_util.c
 flux_pwr_manager_la_CPPFLAGS = \
 												$(AM_CPPFLAGS) \
 												$(FLUX_CORE_CFLAGS) \

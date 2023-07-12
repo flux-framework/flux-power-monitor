@@ -47,6 +47,7 @@ void free_resources(char **node_hostname_list, int size,
     free(node_hostname_list[i]);
   }
   free(node_hostname_list);
+
   for (int j = 0; j < jobs_list_size; j++) {
     job_data_destroy(job_data_list[j]);
   }
@@ -63,7 +64,7 @@ job_map_entry *find_job(job_map_entry *job_map, const char *jobId,
   return NULL;
 }
 
-void handle_new_job(json_t *value, dynamic_job_map *job_map, flux_t *h) {
+int handle_new_job(json_t *value, dynamic_job_map *job_map, flux_t *h) {
   char **node_hostname_list = NULL;
   int size = 0;
 
@@ -72,14 +73,14 @@ void handle_new_job(json_t *value, dynamic_job_map *job_map, flux_t *h) {
 
   if (!json_is_string(nodelist) || !json_is_string(jobId_json)) {
     flux_log(h, LOG_CRIT, "Unable get nodeList or jobId from job");
-    return;
+    return -1;
   }
 
   const char *str = json_string_value(nodelist);
   const char *jobId = json_string_value(jobId_json);
   if (!str || !jobId) {
     flux_log(h, LOG_CRIT, "Error in sending job-list or jobId Request");
-    return;
+    return -1;
   }
 
   getNodeList((char *)str, &node_hostname_list, &size);
@@ -87,34 +88,62 @@ void handle_new_job(json_t *value, dynamic_job_map *job_map, flux_t *h) {
   job_map_entry job_entry = {
       .jobId = strdup(jobId),
       .data = job_data_new((char *)jobId, node_hostname_list, size)};
-  add_to_job_map(job_map, job_entry);
+
+  if (!job_entry.jobId || !job_entry.data) {
+    flux_log(h, LOG_CRIT, "Failed to allocate memory for job entry");
+    free_resources(node_hostname_list, size, NULL,
+                   0); // Modify as needed for your context
+    return -1;
+  }
+
+  int add_result = add_to_job_map(job_map, job_entry);
+
+  if (add_result != 0) {
+    flux_log(h, LOG_CRIT, "Failed to add job to map");
+    free(job_entry.jobId);
+    job_data_destroy(job_entry.data);
+    free_resources(node_hostname_list, size, NULL,
+                   0); // Modify as needed for your context
+    return -1;
+  }
 
   for (int i = 0; i < size; i++) {
     free(node_hostname_list[i]);
   }
   free(node_hostname_list);
+
+  return 0;
 }
 
-void parse_jobs( flux_t *h,json_t* jobs, dynamic_job_map *job_map,size_t job_map_size) {
+int parse_jobs(flux_t *h, json_t *jobs, dynamic_job_map *job_map) {
   size_t index;
   json_t *value;
 
-  // Create a new job map
-  dynamic_job_map *new_job_map = init_job_map(job_map_size);
-
-  // Now handle each new job and add them into new_job_map
   json_array_foreach(jobs, index, value) {
-    handle_new_job(value, new_job_map, h);
+    if (handle_new_job(value, job_map, h) != 0) {
+      flux_log(h, LOG_ERR, "Failed to handle job at index %zu", index);
+    }
   }
 
-  // Free the memory used by the old job_map
   for (size_t i = 0; i < job_map->size; i++) {
-    free(job_map->entries[i].jobId);
-    job_data_destroy(job_map->entries[i].data);
-  }
-  free(job_map->entries);
-  free(job_map);
+    const char *jobId = job_map->entries[i].jobId;
+    bool found = false;
 
-  // Assign the new_job_map to job_map
-  job_map = new_job_map;
+    json_array_foreach(jobs, index, value) {
+      json_t *jobId_json = json_object_get(value, "jobId");
+      if (jobId_json && json_is_string(jobId_json) &&
+          strcmp(jobId, json_string_value(jobId_json)) == 0) {
+        found = true;
+        break;
+      }
+    }
+
+    if (!found) {
+      remove_from_job_map(job_map, i);
+      i--; // We need to decrease i as we have removed an element, so next
+           // element has shifted to current i
+    }
+  }
+
+  return 0;
 }

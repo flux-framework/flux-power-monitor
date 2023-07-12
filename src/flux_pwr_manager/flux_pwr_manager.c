@@ -2,8 +2,8 @@
 #include "config.h"
 #endif
 #include "dynamic_job_map.h"
-#include "job_power_util.h"
 #include "job_data.h"
+#include "job_power_util.h"
 #include "power_policy.h"
 #include "util.h"
 #include "variorum.h"
@@ -52,7 +52,6 @@ static double gpu_power_acc = 0.0;  // GPU power accumulator
 static double cpu_power_acc = 0.0;  // CPU power accumulator
 static double mem_power_acc = 0.0;  // Memory power accumulator
 
-
 void flux_pwr_mgr_set_powercap_cb(flux_t *h, flux_msg_handler_t *mh,
                                   const flux_msg_t *msg, void *arg) {
 
@@ -96,8 +95,18 @@ err:
     flux_log_error(h, "flux_respond_error");
 }
 
-void handle_get_node_power_rpc(flux_future_t* f,void *args){
-
+void handle_get_node_power_rpc(flux_future_t *f, void *args) {
+  uint64_t start_time, end_time;
+  uint64_t jobId;
+  json_t *array;
+  if (flux_rpc_get_unpack(f, "{s:I,s:I,s:I,s:O}", "start_time", &start_time,
+                          "end_time", &end_time, "flux_jobId", &jobId, "data",
+                          &array) < 0) {
+    return;
+  }
+  // for(int i=0;i<job_map_data->size;i++){
+  //   if(job_map_data->entries->jobId==jobId){}
+  // }
 }
 // Use flux_pwr_monitor to get power_data for job nodes
 void get_job_power(flux_t *h, job_data *job) {
@@ -124,6 +133,16 @@ void get_job_power(flux_t *h, job_data *job) {
     flux_log(h, LOG_CRIT, "Error in sending job-list Request");
     return;
   }
+  if (flux_future_then(f, -1., handle_get_node_power_rpc, NULL) < 0) {
+    flux_log(h, LOG_CRIT,
+             "Error in setting flux_future_then for RPC get_node_power");
+    return;
+  }
+  if (flux_reactor_run(flux_get_reactor(h), 0) < 0) {
+    flux_log(h, LOG_CRIT,
+             "Error in reactor for flux_get_reactor for RPC get_node_power");
+    return;
+  }
 }
 
 void get_flux_jobs(flux_t *h) {
@@ -131,6 +150,7 @@ void get_flux_jobs(flux_t *h) {
   json_t *jobs;
   uint32_t userid;
   int states = 0;
+  char *job_data_string;
   if (!(f = flux_rpc_pack(h, "job-list.list", FLUX_NODEID_ANY, 0,
                           "{s:i s:[s] s:i s:i s:i}", "max_entries", 100,
                           "attrs", "all", "userid", FLUX_USERID_UNKNOWN,
@@ -142,7 +162,14 @@ void get_flux_jobs(flux_t *h) {
     flux_log(h, LOG_CRIT, "Error in unpacking job-list Request");
     return;
   }
-  parse_jobs(h,jobs, job_map_data,JOB_MAP_SIZE);
+  job_data_string = json_dumps(jobs, JSON_INDENT(4));
+  if (!job_data_string) {
+    fprintf(stderr, "error: failed to serialize json\n");
+    json_decref(jobs);
+  }
+
+  flux_log(h, LOG_CRIT, "%s\n", job_data_string);
+  parse_jobs(h, jobs, job_map_data);
   json_decref(jobs);
   flux_future_destroy(f);
 }
@@ -195,6 +222,7 @@ int mod_main(flux_t *h, int argc, char **argv) {
     dag[DOWNSTREAM2] = -1;
   }
 
+  job_map_data = init_job_map(JOB_MAP_SIZE);
   flux_msg_handler_t **handlers = NULL;
 
   // Let all ranks set this up.

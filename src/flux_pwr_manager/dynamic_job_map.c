@@ -18,14 +18,27 @@ void resize_job_map(dynamic_job_map *job_map, size_t new_capacity) {
 }
 
 // Add a new entry to a dynamic job map
-void add_to_job_map(dynamic_job_map *job_map, job_map_entry new_entry) {
+int add_to_job_map(dynamic_job_map *job_map, job_map_entry new_entry) {
   if (job_map->size == job_map->capacity) {
-    resize_job_map(job_map, job_map->capacity * 2);
+    size_t new_capacity = job_map->capacity * 2;
+    job_map_entry *new_entries =
+        realloc(job_map->entries, new_capacity * sizeof(job_map_entry));
+    if (!new_entries) {
+      return -1; // Failed to allocate memory
+    }
+    job_map->entries = new_entries;
+    job_map->capacity = new_capacity;
   }
+
   job_map->entries[job_map->size++] = new_entry;
+  return 0; // Success
 }
-// Remove an entry from a dynamic job map
+
 void remove_from_job_map(dynamic_job_map *job_map, size_t index) {
+  if (index >= job_map->size) {
+    return;
+  }
+
   free(job_map->entries[index].jobId);
   job_data_destroy(job_map->entries[index].data);
 
@@ -34,14 +47,26 @@ void remove_from_job_map(dynamic_job_map *job_map, size_t index) {
   }
   job_map->size--;
 
-  // Shrink the array if it's less than a quarter full, but not smaller than
-  // min_capacity
   if (job_map->size > job_map->min_capacity &&
       job_map->size < job_map->capacity / 4) {
-    resize_job_map(job_map, job_map->capacity / 2);
+    size_t new_capacity = job_map->capacity / 2;
+    job_map_entry *new_entries =
+        realloc(job_map->entries, new_capacity * sizeof(job_map_entry));
+    if (!new_entries) {
+      return; // Failed to allocate memory
+    }
+    job_map->entries = new_entries;
+    job_map->capacity = new_capacity;
   }
 
   if (job_map->capacity < job_map->min_capacity) {
-    resize_job_map(job_map, job_map->min_capacity);
+    size_t new_capacity = job_map->min_capacity;
+    job_map_entry *new_entries =
+        realloc(job_map->entries, new_capacity * sizeof(job_map_entry));
+    if (!new_entries) {
+      return; // Failed to allocate memory
+    }
+    job_map->entries = new_entries;
+    job_map->capacity = new_capacity;
   }
 }
