@@ -1,3 +1,6 @@
+#if HAVE_CONFIG_H
+#include "config.h"
+#endif
 #include "dynamic_job_map.h"
 
 // Initialize a dynamic job map with a given capacity
@@ -39,7 +42,6 @@ void remove_from_job_map(dynamic_job_map *job_map, size_t index) {
     return;
   }
 
-  free(job_map->entries[index].jobId);
   job_data_destroy(job_map->entries[index].data);
 
   for (size_t i = index + 1; i < job_map->size; i++) {

@@ -1,3 +1,4 @@
+#include "circular_buffer.h"
 #include "response_power_data.h"
 #if HAVE_CONFIG_H
 #include "config.h"
@@ -5,6 +6,26 @@
 #include "util.h"
 #include <assert.h>
 #include <jansson.h>
+double do_agg(circular_buffer_t *buffer, double current_power_value,
+              double old_power_value) {
+  if (buffer == NULL)
+    return -1.0;
+  if(circular_buffer_get_current_size(buffer)==0)
+    return current_power_value;
+  if (circular_buffer_get_max_size(buffer) ==
+      circular_buffer_get_current_size(buffer)) {
+    old_power_value -= *(double *)zlist_first(buffer->list);
+  }
+  double *p_data = malloc(sizeof(double));
+  if(p_data==NULL)
+    return -1;
+  *p_data = current_power_value;
+  old_power_value += current_power_value;
+  circular_buffer_push(buffer, (void *)p_data);
+  old_power_value /= circular_buffer_get_current_size(buffer);
+  return old_power_value;
+}
+
 int parse_json(char *s, response_power_data *data) {
   if (data == NULL)
     return -1;
@@ -72,7 +93,7 @@ response_power_data *get_agg_power_data(circular_buffer_t *buffer,
   // If startTime or endTime are not within the range of timestamps currently in
   // the buffer, adjust them to represent the earliest and latest timestamps,
   // respectively.
-  if(start_time > end_time){
+  if (start_time > end_time) {
     return power_data;
   }
   if ((start_time > earliest || start_time < latest) &&

@@ -104,9 +104,12 @@ void handle_get_node_power_rpc(flux_future_t *f, void *args) {
                           &array) < 0) {
     return;
   }
-  // for(int i=0;i<job_map_data->size;i++){
-  //   if(job_map_data->entries->jobId==jobId){}
-  // }
+  for (int i = 0; i < job_map_data->size; i++) {
+    if (job_map_data->entries[i].jobId == jobId) {
+      parse_power_payload(array, job_map_data->entries[i].data, end_time);
+    }
+  }
+  flux_future_destroy(f);
 }
 // Use flux_pwr_monitor to get power_data for job nodes
 void get_job_power(flux_t *h, job_data *job) {
@@ -197,6 +200,21 @@ static void timer_handler(flux_reactor_t *r, flux_watcher_t *w, int revents,
     flux_log(h, LOG_CRIT, "JSON: get node power failed!\n");
   printf("%s\n", s);
   get_flux_jobs(h);
+  for (int i = 0; i < job_map_data->size; i++) {
+    get_job_power(h, job_map_data->entries[i].data);
+  }
+  for (int i = 0; i < job_map_data->size; i++) {
+    if (job_map_data[i].entries->data->node_power_profile_data != NULL) {
+      for (int j = 0; j < job_map_data[i].entries->data->num_of_nodes; j++) {
+        if (job_map_data[j].entries->data->node_power_profile_data[j] == NULL) {
+          flux_log(h, LOG_CRIT, " %f ",
+                   job_map_data[j]
+                       .entries->data->node_power_profile_data[j]
+                       ->node_power_agg);
+        }
+      }
+    }
+  }
 }
 static const struct flux_msg_handler_spec htab[] = {
     {FLUX_MSGTYPE_REQUEST, "flux_pwr_mgr.set_powercap",

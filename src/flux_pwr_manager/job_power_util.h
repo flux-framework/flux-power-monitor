@@ -4,6 +4,6 @@
 #include "flux/core.h"
 #include "job_data.h"
 #include <jansson.h>
-int parse_power_payload(flux_t *h, json_t *payload, job_data *job);
+int parse_power_payload( json_t *payload, job_data *job,uint64_t timestamp);
 int parse_jobs(flux_t *h, json_t* jobs, dynamic_job_map *job_map) ;
 #endif

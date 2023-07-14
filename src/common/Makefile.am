@@ -8,5 +8,7 @@ libcommon_la_SOURCES=	\
 											node_power_info.h \
 											response_power_data.h \
 											response_power_data.c \
+											power_data.h \
+											power_data.c \
 											util.h \
 											util.c

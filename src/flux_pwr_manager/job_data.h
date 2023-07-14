@@ -9,15 +9,25 @@
     goto cleanup;                                                              \
   } while (0)
 
-#define PER_NODE_POWER_HISTORY 100
+#define POWER_HISTORY_SIZE 100
 typedef struct {
-  char *jobId;
+  uint64_t jobId;
   int num_of_nodes;
   char **node_hostname_list;
-  power_data *job_agg_power_data;
+  double job_power_agg;
+  double job_power_current;
+  double job_power_cap;
+  uint64_t latest_entry_time_stamp;
+  circular_buffer_t *job_power_history;
   node_power_profile **node_power_profile_data;
 } job_data;
 
-job_data *job_data_new(char *jobId, char **node_hostname_list, int node_size);
+int job_power_update(job_data *job, power_data *data);
+
+int job_node_power_update(job_data *job, char *hostname, power_data **p_data,
+                          int num_of_gpus, int num_of_sockets, bool mem,
+                          int num_of_devices, power_data *node_p_data,uint64_t timestamp);
+job_data *job_data_new(uint64_t jobId, char **node_hostname_list,
+                       int node_size);
 void job_data_destroy(job_data *job);
 #endif

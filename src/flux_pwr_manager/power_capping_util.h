@@ -1,0 +1,4 @@
+#ifndef FLUX_POWER_CAPPING_UTIL_H
+#define FLUX_POWER_CAPPING_UTIL_H
+#endif
+

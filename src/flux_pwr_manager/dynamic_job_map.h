@@ -2,7 +2,7 @@
 #define FLUX_DYNAMIC_JOB_MAP_H
 #include "job_data.h"
 typedef struct {
-  char *jobId;
+  uint64_t jobId;
   job_data *data;
 } job_map_entry;
 
