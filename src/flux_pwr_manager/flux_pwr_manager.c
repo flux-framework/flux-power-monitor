@@ -51,34 +51,46 @@ static double node_power_acc = 0.0; // Node power accumulator
 static double gpu_power_acc = 0.0;  // GPU power accumulator
 static double cpu_power_acc = 0.0;  // CPU power accumulator
 static double mem_power_acc = 0.0;  // Memory power accumulator
+void get_max_power(job_data* data){
+  for(int i=0;i<data->num_of_nodes;i++){
+    data->node_power_profile_data[i]->node_power_history
+  }
 
+}
+void get_min_power(job_data* data){
+
+return 50;
+}
 void flux_pwr_mgr_set_powercap_cb(flux_t *h, flux_msg_handler_t *mh,
                                   const flux_msg_t *msg, void *arg) {
 
-  int power_cap;
+  double power_cap;
   char *errmsg = "";
   int ret = 0;
-
+  char *current_hostname;
+  char myhostname[256];
   /*  Use flux_msg_get_payload(3) to get the raw data and size
    *   of the request payload.
    *  For JSON payloads, also see flux_request_unpack().
    */
-  if (flux_request_unpack(msg, NULL, "{s:i}", "node", &power_cap) < 0) {
+  gethostname(myhostname, 256);
+  if (flux_request_unpack(msg, NULL, "{s:s,s:f}", "hostname", &current_hostname,
+                          "node_powercap", &power_cap) < 0) {
     flux_log_error(h, "flux_pwr_mgr_set_powercap_cb: flux_request_unpack");
     errmsg = "flux_request_unpack failed";
     goto err;
   }
 
   flux_log(h, LOG_CRIT,
-           "I received flux_pwr_mgr.set_powercap message of %d W. \n",
+           "I received flux_pwr_mgr.set_powercap message of %f W. \n",
            power_cap);
-
-  ret = variorum_cap_best_effort_node_power_limit(power_cap);
-  if (ret != 0) {
-    flux_log(h, LOG_CRIT, "Variorum set node power limit failed!\n");
-    return;
+  if (strcmp(current_hostname, myhostname) == 0) {
+    ret = variorum_cap_best_effort_node_power_limit(power_cap);
+    if (ret != 0) {
+      flux_log(h, LOG_CRIT, "Variorum set node power limit failed!\n");
+      return;
+    }
   }
-
   /*  Use flux_respond_raw(3) to include copy of payload in the response.
    *  For JSON payloads, see flux_respond_pack(3).
    */
@@ -99,11 +111,15 @@ void handle_get_node_power_rpc(flux_future_t *f, void *args) {
   uint64_t start_time, end_time;
   uint64_t jobId;
   json_t *array;
+  char *print_test;
   if (flux_rpc_get_unpack(f, "{s:I,s:I,s:I,s:O}", "start_time", &start_time,
                           "end_time", &end_time, "flux_jobId", &jobId, "data",
                           &array) < 0) {
     return;
   }
+  print_test = json_dumps(array, 0);
+  printf("Flux log data is %s", print_test);
+  free(print_test);
   for (int i = 0; i < job_map_data->size; i++) {
     if (job_map_data->entries[i].jobId == jobId) {
       parse_power_payload(array, job_map_data->entries[i].data, end_time);
@@ -171,46 +187,44 @@ void get_flux_jobs(flux_t *h) {
     json_decref(jobs);
   }
 
+  json_decref(jobs);
   flux_log(h, LOG_CRIT, "%s\n", job_data_string);
   parse_jobs(h, jobs, job_map_data);
-  json_decref(jobs);
   flux_future_destroy(f);
 }
 static void timer_handler(flux_reactor_t *r, flux_watcher_t *w, int revents,
                           void *arg) {
+  if (rank == 0) {
+    static int initialized = 0;
 
-  static int initialized = 0;
+    int ret;
+    char *s = malloc(1500);
 
-  int ret;
-  char *s = malloc(1500);
+    double node_power;
+    double gpu_power;
+    double cpu_power;
+    double mem_power;
 
-  double node_power;
-  double gpu_power;
-  double cpu_power;
-  double mem_power;
+    char my_hostname[256];
+    gethostname(my_hostname, 256);
 
-  char my_hostname[256];
-  gethostname(my_hostname, 256);
+    flux_t *h = (flux_t *)arg;
 
-  flux_t *h = (flux_t *)arg;
-
-  // Go off and take your measurement.
-  ret = variorum_get_node_power_json(&s);
-  if (ret != 0)
-    flux_log(h, LOG_CRIT, "JSON: get node power failed!\n");
-  printf("%s\n", s);
-  get_flux_jobs(h);
-  for (int i = 0; i < job_map_data->size; i++) {
-    get_job_power(h, job_map_data->entries[i].data);
-  }
-  for (int i = 0; i < job_map_data->size; i++) {
-    if (job_map_data[i].entries->data->node_power_profile_data != NULL) {
-      for (int j = 0; j < job_map_data[i].entries->data->num_of_nodes; j++) {
-        if (job_map_data[j].entries->data->node_power_profile_data[j] == NULL) {
-          flux_log(h, LOG_CRIT, " %f ",
-                   job_map_data[j]
-                       .entries->data->node_power_profile_data[j]
-                       ->node_power_agg);
+    get_flux_jobs(h);
+    flux_log(h, LOG_CRIT, "number of job %ld", job_map_data->size);
+    for (int i = 0; i < job_map_data->size; i++) {
+      get_job_power(h, job_map_data->entries[i].data);
+    }
+    for (int i = 0; i < job_map_data->size; i++) {
+      if (job_map_data[i].entries->data->node_power_profile_data != NULL) {
+        for (int j = 0; j < job_map_data[i].entries->data->num_of_nodes; j++) {
+          if (job_map_data[j].entries->data->node_power_profile_data[j] ==
+              NULL) {
+            flux_log(h, LOG_CRIT, " %f ",
+                     job_map_data[j]
+                         .entries->data->node_power_profile_data[j]
+                         ->node_power_agg);
+          }
         }
       }
     }
@@ -248,7 +262,7 @@ int mod_main(flux_t *h, int argc, char **argv) {
 
   // All ranks set a handler for the timer.
   flux_watcher_t *timer_watch_p = flux_timer_watcher_create(
-      flux_get_reactor(h), 2.0, 2.0, timer_handler, h);
+      flux_get_reactor(h), 1.0, 5.0, timer_handler, h);
   assert(timer_watch_p);
   flux_watcher_start(timer_watch_p);
 

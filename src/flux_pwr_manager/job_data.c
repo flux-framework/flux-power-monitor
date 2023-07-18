@@ -96,13 +96,14 @@ void job_data_destroy(job_data *job) {
   free(job);
   job = NULL;
 }
-int job_data_add_power_data_to_job_history(job_data *job, power_data *data) {
+int job_power_update(job_data *job, power_data *data) {
   if (job == NULL || data == NULL)
     return -1;
   job->job_power_current=data->power_value;
   do_agg(job->job_power_history, data->power_value, job->job_power_agg);
   return 0;
 }
+
 int job_node_power_update(job_data *job, char *hostname, power_data **p_data,
                           int num_of_gpus, int num_of_sockets, bool mem,
                           int num_of_devices, power_data *node_p_data,

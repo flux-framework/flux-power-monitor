@@ -27,7 +27,7 @@ int node_device_power_update(node_power_profile *node, power_data **data,
                              int num_of_devices);
 int node_device_list_init(node_power_profile *node, int num_of_sockets,
                           int num_of_gpus, bool mem, power_data **data,
-                          int data_size,size_t device_history_size);
+                          int data_size, size_t device_history_size);
 int node_power_update(node_power_profile *node, power_data *node_power);
 void node_power_profile_destroy(node_power_profile *node);
 

@@ -7,7 +7,8 @@ flux_pwr_manager_la_SOURCES = \
 											job_data.c \
 											node_power_profile.c \
 											dynamic_job_map.c \
-											job_power_util.c
+											job_power_util.c \
+											device_power_info.c
 flux_pwr_manager_la_CPPFLAGS = \
 												$(AM_CPPFLAGS) \
 												$(FLUX_CORE_CFLAGS) \

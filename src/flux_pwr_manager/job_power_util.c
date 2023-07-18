@@ -10,7 +10,7 @@ int parse_power_payload(json_t *payload, job_data *job, uint64_t timestamp) {
   int rc = -1;
   size_t index;
   json_t *value;
-  double job_power_data_avg;
+  double job_power_data_sum;
   int num_of_valid_hostname;
   json_array_foreach(payload, index, value) {
     power_data data = {0};
@@ -66,7 +66,7 @@ int parse_power_payload(json_t *payload, job_data *job, uint64_t timestamp) {
       free_power_data_list(p_data, num_of_devices);
       continue;
     }
-    job_power_data_avg += node_power;
+    job_power_data_sum += node_power;
     num_of_valid_hostname++;
     power_data_destroy(node_p_data);
     free_power_data_list(p_data, num_of_devices);
@@ -77,7 +77,7 @@ int parse_power_payload(json_t *payload, job_data *job, uint64_t timestamp) {
   }
   power_data *j_data = malloc(sizeof(power_data));
   j_data->type = JOB;
-  j_data->power_value = job_power_data_avg / num_of_valid_hostname;
+  j_data->power_value = job_power_data_sum ;
   job_power_update(job, j_data);
   free(j_data);
   rc = 0;
@@ -114,7 +114,10 @@ int handle_new_job(json_t *value, dynamic_job_map *job_map, flux_t *h) {
 
   json_t *nodelist = json_object_get(value, "nodelist");
   json_t *jobId_json = json_object_get(value, "id");
-
+  flux_log(h,LOG_CRIT,"Json is string %d \n",json_is_string(jobId_json)); 
+  flux_log(h,LOG_CRIT,"Json is integer %d \n",json_is_integer(jobId_json)); 
+  flux_log(h,LOG_CRIT,"Json is string %d \n",json_is_string(nodelist)); 
+  flux_log(h,LOG_CRIT,"Json is integer %d \n",json_is_integer(nodelist)); 
   if (!json_is_string(nodelist) || !json_is_integer(jobId_json)) {
     flux_log(h, LOG_CRIT, "Unable get nodeList or jobId from job");
     return -1;
@@ -160,7 +163,10 @@ int handle_new_job(json_t *value, dynamic_job_map *job_map, flux_t *h) {
 int parse_jobs(flux_t *h, json_t *jobs, dynamic_job_map *job_map) {
   size_t index;
   json_t *value;
-
+  if(job_map==NULL || jobs == NULL){
+    flux_log_error(h,"NULL jobs or job_map passed in parse_jobs");
+    return -1;
+  }
   json_array_foreach(jobs, index, value) {
     if (handle_new_job(value, job_map, h) != 0) {
       flux_log(h, LOG_ERR, "Failed to handle job at index %zu", index);
@@ -172,7 +178,7 @@ int parse_jobs(flux_t *h, json_t *jobs, dynamic_job_map *job_map) {
     bool found = false;
 
     json_array_foreach(jobs, index, value) {
-      json_t *jobId_json = json_object_get(value, "jobId");
+      json_t *jobId_json = json_object_get(value, "id");
       if (jobId_json && json_is_integer(jobId_json) &&
           (jobId == json_integer_value(jobId_json))) {
         found = true;
