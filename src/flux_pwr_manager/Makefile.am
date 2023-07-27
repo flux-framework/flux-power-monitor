@@ -16,7 +16,8 @@ flux_pwr_manager_la_CPPFLAGS = \
 flux_pwr_manager_la_LIBADD = \
 											$(FLUX_CORE_LIBS) \
 											$(VARIORUM_LIB) \
-											$(top_builddir)/src/common/libcommon.la
+											$(top_builddir)/src/common/libcommon.la \
+											$(top_builddir)/src/flux_pwr_manager/power_policies/libpower_policy.la
 flux_pwr_manager_la_LDFLAGS = \
 																$(fluxpwr_ldflags) \
 																	-module

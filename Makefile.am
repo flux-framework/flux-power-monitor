@@ -1,7 +1,8 @@
 SUBDIRS = \
 	src/common \
 	src/flux_pwr_monitor \
-	src/flux_pwr_manager
+	src/flux_pwr_manager/power_policies\
+	src/flux_pwr_manager 
 
 EXTRA_DIST = \
 	NEWS.md \

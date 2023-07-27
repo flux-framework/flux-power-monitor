@@ -58,7 +58,7 @@ def main():
         print("Issue in getting time value")
         return
     print(
-        f"making an RPC call for start_time: {startTime}, end_time {endTime} and nodeList {hostList}"
+        f"making an RPC call for start_time: {startTime}, end_time {endTime} and nodeList {hostList} and jobId: {id_parse(jobId)}"
     )
     print(
         h.rpc(
@@ -67,19 +67,20 @@ def main():
                 "start_time": startTime,
                 "end_time": endTime,
                 "nodelist": hostList,
+                "flux_jobId": id_parse(jobId),
             },
             nodeid=0,
             flags=flux.constants.FLUX_RPC_STREAMING,
         ).get()
     )
-    print(
-        h.rpc(
-            "flux_pwr_monitor.get_node_power",
-            {"start_time": 0, "end_time": 10, "nodelist": ["tioga23"]},
-            nodeid=0,
-            flags=flux.constants.FLUX_RPC_STREAMING,
-        ).get()
-    )
+    # print(
+    #     h.rpc(
+    #         "flux_pwr_monitor.get_node_power",
+    #         {"start_time": 0, "end_time": 10, "nodelist": ["tioga23"]},
+    #         nodeid=0,
+    #         flags=flux.constants.FLUX_RPC_STREAMING,
+    #     ).get()
+    # )
     # print(
     #     h.rpc(
     #         "flux_pwr_monitor.get_node_power",

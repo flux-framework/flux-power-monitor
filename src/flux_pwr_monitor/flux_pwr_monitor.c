@@ -339,8 +339,6 @@ static const struct flux_msg_handler_spec htab[] = {
      flux_pwr_monitor_get_hostname, 0},
     {FLUX_MSGTYPE_REQUEST, "flux_pwr_monitor.get_node_power",
      flux_pwr_monitor_get_node_power, 0},
-    {FLUX_MSGTYPE_REQUEST, "flux_pwr_monitor.get_host_name",
-     flux_pwr_monitor_request_power_data_from_node, 0},
     {FLUX_MSGTYPE_REQUEST, "flux_pwr_monitor.request_power_data_from_node",
      flux_pwr_monitor_request_power_data_from_node, 0},
     FLUX_MSGHANDLER_TABLE_END,

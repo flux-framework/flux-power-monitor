@@ -22,9 +22,9 @@ node_power_profile *node_power_profile_new(char *hostname,
   node->hostname = strdup(hostname);
   if (node->hostname == NULL)
     HANDLE_ERROR("Failed to allocate memory for hostname.");
-  node->node_history_size = node_history_size;
-  node->node_power_history = circular_buffer_new(node->node_history_size, free);
-  if (node->node_power_history == NULL)
+  node->history_size = node_history_size;
+  node->power_history = circular_buffer_new(node->history_size, free);
+  if (node->power_history == NULL)
     HANDLE_ERROR("Failed to create circular_buffer for node_power_history");
   node->node_current_power_policy = CURRENT_POWER;
   node->device_power_policy = CURRENT_POWER;
@@ -43,8 +43,8 @@ void node_power_profile_destroy(node_power_profile *node) {
     return;
   if (node->hostname != NULL)
     free(node->hostname);
-  if (node->node_power_history != NULL)
-    circular_buffer_destroy(node->node_power_history);
+  if (node->power_history != NULL)
+    circular_buffer_destroy(node->power_history);
   if (node->device_list != NULL) {
     for (int i = 0; i < node->total_num_of_devices; i++) {
       if (node->device_list[i] != NULL)
@@ -76,10 +76,11 @@ int node_device_list_init(node_power_profile *node, int num_of_sockets,
   for (i = 0; i < data_size; i++) {
     if (data[i] == NULL)
       HANDLE_ERROR("PANIC: Data supplied has NULL values");
-    node->device_list[i] = device_power_profile_new(
+    device_power_profile* device_data = device_power_profile_new(
         data[i]->type, data[i]->device_id, device_history_size);
-    if (node->device_list[i] == NULL)
+    if (device_data == NULL)
       HANDLE_ERROR("Unable to allocate memory for new device");
+    node->device_list[i]=device_data;
   }
   return 0;
 
@@ -96,7 +97,7 @@ cleanup:
   return -1;
 }
 void node_current_power_policy_set(node_power_profile *node,
-                                   POWER_POLICY node_power_policy) {
+                                   POWER_POLICY_TYPE node_power_policy) {
   if (node == NULL)
     return;
   node->node_current_power_policy = node_power_policy;
@@ -126,17 +127,18 @@ cleanup:
 int node_power_update(node_power_profile *node, power_data *data) {
   if (data->type != NODE)
     HANDLE_ERROR("Wrong Data supplied");
-  node->node_power_latest = data->power_value;
-  if (node->node_power_history == NULL)
+  node->power_current = data->power_value;
+  if (node->power_history == NULL)
     HANDLE_ERROR("node power history is nULL");
   // First finding the average and then only add the item to buffer as we want
   // to keep a running average of all the items in the circular_buffer
   double node_power_agg =
-      do_agg(node->node_power_history, data->power_value, node->node_power_agg);
+      do_agg(node->power_history, data->power_value, node->power_agg);
   if (node_power_agg != -1.0)
-    node->node_power_agg = node_power_agg;
+    node->power_agg = node_power_agg;
   else
     HANDLE_ERROR("Error when adding value to node history");
+  return 0;
 cleanup:
   return -1;
 }

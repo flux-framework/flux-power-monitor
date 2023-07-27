@@ -14,7 +14,8 @@ typedef struct {
 } dynamic_job_map;
 
 dynamic_job_map *init_job_map(size_t initial_capacity);
-void resize_job_map(dynamic_job_map *job_map, size_t new_capacity);
+int resize_job_map(dynamic_job_map *job_map, size_t new_capacity);
 int add_to_job_map(dynamic_job_map *job_map, job_map_entry new_entry);
 void remove_from_job_map(dynamic_job_map *job_map, size_t index);
+void dynamic_job_map_destroy(dynamic_job_map* job_map);
 #endif

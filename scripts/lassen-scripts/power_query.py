@@ -9,7 +9,8 @@ def getJobInfo(handle, jobId):
     jobId = id_parse(jobId)
     print(jobId)
     # print(flux.job.JobList(handle,ids=[jobId]).fetch_jobs().get())
-    return flux.job.JobList(handle,ids=[jobId]).jobs()[0]
+    return flux.job.JobList(handle, ids=[jobId]).jobs()[0]
+
 
 def getNodeList(nodeData):
     hostname, ranges = nodeData.strip().split("[")
@@ -28,12 +29,12 @@ def getNodeList(nodeData):
 
 # Time decimal part is removed as the current power module have time resolution of seconds.
 def getJobStartTime(jobInfo):
-    return int(jobInfo["t_run"]*1e6)
+    return int(jobInfo["t_run"] * 1e6)
 
 
 # Cleanup time represents the time job cleanup phase begins, i.e. job has finished.
 def getjobEndTime(jobInfo):
-    return int(jobInfo["t_cleanup"]*1e6)
+    return int(jobInfo["t_cleanup"] * 1e6)
 
 
 def main():
@@ -49,13 +50,13 @@ def main():
         print("No Job Data found")
         return None
     # hostList = getNodeList(jobInfo["nodelist"])
-    
-    hostList= getNodeList(jobInfo.__getattr__("nodelist"))
+
+    hostList = getNodeList(jobInfo.__getattr__("nodelist"))
     try:
         # startTime = getJobStartTime(jobInfo)
-        startTime=int(jobInfo.__getattr__("t_run")*1e6)
-        endTime=int(jobInfo.__getattr__("t_cleanup")*1e6)
-        print(startTime,endTime)
+        startTime = int(jobInfo.__getattr__("t_run") * 1e6)
+        endTime = int(jobInfo.__getattr__("t_cleanup") * 1e6)
+        print(startTime, endTime)
         # endTime = getjobEndTime(jobInfo)
         if startTime == 0 or endTime == 0:
             raise Exception
@@ -63,7 +64,7 @@ def main():
         print("Issue in getting time value")
         return
     print(
-        f"making an RPC call for start_time: {startTime}, end_time {endTime} and nodeList {hostList}"
+            f"making an RPC call for start_time: {startTime}, end_time {endTime} and nodeList {hostList} and jobId {id_parse(jobId)}"
     )
     print(
         h.rpc(
@@ -72,6 +73,7 @@ def main():
                 "start_time": startTime,
                 "end_time": endTime,
                 "nodelist": hostList,
+                "flux_jobId":id_parse(jobId)
             },
             nodeid=0,
             flags=flux.constants.FLUX_RPC_STREAMING,
