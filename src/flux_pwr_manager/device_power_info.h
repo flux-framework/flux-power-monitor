@@ -8,15 +8,15 @@ typedef struct {
   double agg_power;
   double max_power;
   double min_power;
-  POWER_POLICY_TYPE device_power_policy;
   device_type type;
   uint64_t device_id;
   double current_power;
   double powercap;
   double max_powercap;
+  bool powercap_allowed;
+  POWER_POLICY_TYPE device_power_policy;
   circular_buffer_t *power_history;
 } device_power_profile;
-
 
 device_power_profile *device_power_profile_new(device_type type,
                                                uint64_t device_id,

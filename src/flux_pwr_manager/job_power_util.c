@@ -7,52 +7,44 @@
 #include "node_power_profile.h"
 #include "util.h"
 
-int parse_node_capabilities(flux_t *h, json_t *data,
-                            node_capability *node_data) {
-  if (node_data == NULL)
-    return -1;
-  if (data == NULL)
-    return -1;
-  int num_of_gpus;
-  int num_of_sockets;
-  int num_of_cores;
-  bool node;
-  json_t *control = json_object_get(data, "control");
-  json_t *control_range = json_object_get(data, "control_range");
+job_data *find_job(dynamic_job_map *job_map, uint64_t jobId) {
+  if (job_map == NULL)
+    return NULL;
+  for (int i = 0; i < job_map->size; i++) {
+    if (job_map->entries[i].data == NULL)
+      continue;
 
-  if (!json_is_array(control) || !json_is_array(control_range)) {
-    fprintf(stderr, "error: control or control_range is not an array\n");
-
-    return -1;
+    if (job_map->entries[i].data->jobId == jobId)
+      return job_map->entries[i].data;
   }
-
-  // print the values in the "control" array
-  size_t control_index;
-  json_t *control_value;
-  printf("control:\n");
-  json_array_foreach(control, control_index, control_value) {
-    printf("%s\n", json_string_value(control_value));
-    if(strcmp("mem",json_string_value(control_value))==0){
-      
-    }
-
-  }
-
-  // print the values in the "control_range" array
-  size_t range_index;
-  json_t *range_value;
-  printf("control_range:\n");
-  json_array_foreach(control_range, range_index, range_value) {
-    json_t *min_val = json_object_get(range_value, "min");
-    json_t *max_val = json_object_get(range_value, "max");
-    if (json_is_number(min_val) && json_is_number(max_val)) {
-      printf("min: %f, max: %f\n", json_number_value(min_val),
-             json_number_value(max_val));
-    }
-  }
-
-  return 0;
+  return NULL;
 }
+
+node_power_profile *find_node(job_data *data, char *hostname) {
+  if (data == NULL)
+    return NULL;
+  for (int i = 0; i < data->num_of_nodes; i++) {
+    for (int j = 0; j < data->num_of_nodes; j++) {
+      if (strcmp(data->node_power_profile_data[j]->hostname, hostname) == 0)
+        return data->node_power_profile_data[j];
+    }
+  }
+  return NULL;
+}
+
+device_power_profile *find_device(node_power_profile *node, device_type type,
+                                  int device_id) {
+  if (node == NULL)
+    return NULL;
+  for (int i = 0; i < node->total_num_of_devices; i++) {
+    if (node->device_list[i]->device_id == device_id &&
+        node->device_list[i]->type == type) {
+      return node->device_list[i];
+    }
+  }
+  return NULL;
+}
+
 int parse_power_payload(json_t *payload, job_data *job, uint64_t timestamp) {
   int rc = -1;
   size_t index;
@@ -172,8 +164,8 @@ void free_resources(char **node_hostname_list, int size,
   free(job_data_list);
 }
 
-job_map_entry *find_job(job_map_entry *job_map, const uint64_t jobId,
-                        size_t job_map_size) {
+job_map_entry *find_job_entry(job_map_entry *job_map, const uint64_t jobId,
+                              size_t job_map_size) {
   for (size_t i = 0; i < job_map_size; i++) {
     if (job_map[i].jobId == jobId) {
       return &job_map[i];
@@ -206,7 +198,7 @@ int handle_new_job(json_t *value, dynamic_job_map *job_map, flux_t *h) {
   flux_log(h, LOG_CRIT, "jobId is %ld\n", jobId);
   getNodeList((char *)str, &node_hostname_list, &size);
 
-  if (find_job(job_map->entries, jobId, job_map->size) == NULL) {
+  if (find_job_entry(job_map->entries, jobId, job_map->size) == NULL) {
 
     job_map_entry job_entry = {
         .jobId = jobId, .data = job_data_new(jobId, node_hostname_list, size)};

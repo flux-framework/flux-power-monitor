@@ -12,10 +12,11 @@ device_power_profile *device_power_profile_new(device_type type,
     return NULL;
   device_data->type = type;
   device_data->device_id = device_id;
+  device_data->powercap_allowed = true;
   device_data->power_history = circular_buffer_new(buffer_size, free);
   if (device_data->power_history == NULL) {
     free(device_data);
-    return NULL;  // Return NULL after freeing device_data
+    return NULL; // Return NULL after freeing device_data
   }
   return device_data;
 }
@@ -36,10 +37,10 @@ int device_power_profile_add_power_data_to_device_history(
   return 0;
 }
 void device_power_profile_set_max_power(device_power_profile *device,
-                                       double max_power) {
-  device->max_power=max_power;
+                                        double max_power) {
+  device->max_power = max_power;
 }
 void device_power_profile_set_min_power(device_power_profile *device,
-                                       double min_power){
-  device->min_power=min_power;
+                                        double min_power) {
+  device->min_power = min_power;
 }

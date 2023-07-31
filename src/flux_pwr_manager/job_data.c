@@ -7,7 +7,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
-#include "node_capability.h"
 
 int create_node_power_profile(job_data *job) {
   job->node_power_profile_data =
@@ -104,7 +103,6 @@ int job_power_update(job_data *job, power_data *data) {
   do_agg(job->power_history, data->power_value, job->power_agg);
   return 0;
 }
-int init_node_data(job_data* job,)
 int job_node_power_update(job_data *job, char *hostname, power_data **p_data,
                           int num_of_gpus, int num_of_sockets, bool mem,
                           int num_of_devices, power_data *node_p_data,

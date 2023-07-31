@@ -4,8 +4,12 @@
 #include "flux/core.h"
 #include "job_data.h"
 #include <jansson.h>
-#include "node_capability.h"
-int parse_power_payload( json_t *payload, job_data *job,uint64_t timestamp);
-int parse_jobs(flux_t *h, json_t* jobs, dynamic_job_map *job_map) ;
-int parse_node_capabilities(flux_t* h,json_t* data,node_capability* node_data);
+job_data *find_job(dynamic_job_map *job_map, uint64_t jobId);
+
+node_power_profile *find_node(job_data *data, char *hostname);
+
+device_power_profile *find_device(node_power_profile *node, device_type type,
+                                  int device_id);
+int parse_power_payload(json_t *payload, job_data *job, uint64_t timestamp);
+int parse_jobs(flux_t *h, json_t *jobs, dynamic_job_map *job_map);
 #endif
