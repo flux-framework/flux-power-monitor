@@ -46,7 +46,7 @@ void set_job_power_distribution(dynamic_job_map *job_map,
       return;
     job_map->entries[i].data->max_powercap = global_power_cap / job_map->size;
     // Setting the power cap to the maximum allowed when a job is initalized.
-    if (job_map->entries[i].data->powercap == 0)
+    if (job_map->entries[i].data->powercap == 0.0)
       job_map->entries[i].data->powercap =
           job_map->entries[i].data->max_powercap;
   }
@@ -63,7 +63,7 @@ void set_node_power_distribution(job_data *job_data, double job_power_cap) {
     job_data->node_power_profile_data[i]->max_powercap =
 
         job_power_cap / job_data->num_of_nodes;
-    if (job_data->node_power_profile_data[i]->powercap == 0)
+    if (job_data->node_power_profile_data[i]->powercap == 0.0)
       job_data->node_power_profile_data[i]->powercap =
           job_data->node_power_profile_data[i]->max_powercap;
   }
@@ -82,7 +82,9 @@ void set_device_power_distribution(node_power_profile *node_data,
       return;
     node_data->device_list[i]->max_powercap =
         node_cap / node_data->total_num_of_devices;
-    if (node_data->device_list[i]->powercap == 0)
+    fprintf(stderr, "The powercap of current device is %f\n",
+            node_data->device_list[i]->powercap);
+    if (node_data->device_list[i]->powercap == 0.0)
       node_data->device_list[i]->powercap =
           node_data->device_list[i]->max_powercap;
   }
@@ -90,6 +92,8 @@ void set_device_power_distribution(node_power_profile *node_data,
 double get_device_powercap(device_power_profile *device_data) {
   if (device_data == NULL)
     return -1;
+  fprintf(stderr, "device powercap is %f\n", device_data->powercap);
+  fprintf(stderr, "current power is is %f\n", device_data->current_power);
   return current_power_policy_get_device_powercap(device_data);
 }
 double get_node_powercap(node_power_profile *node_data) {

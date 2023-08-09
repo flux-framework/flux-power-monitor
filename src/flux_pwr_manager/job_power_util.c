@@ -73,7 +73,7 @@ int parse_power_payload(json_t *payload, job_data *job, uint64_t timestamp) {
       fprintf(stderr, "Error unpacking power data");
       continue;
     }
-
+    fprintf(stderr,"Success:Parse power data");
     if (gpu_power != -1)
       num_of_gpus = 1;
     if (mem_power != -1)
@@ -121,6 +121,7 @@ int parse_power_payload(json_t *payload, job_data *job, uint64_t timestamp) {
     node_p_data->device_id = index;
     node_p_data->power_value = node_power;
     node_p_data->type = NODE;
+    fprintf(stderr, "Sending data to job for updating its node info");
     if (job_node_power_update(job, (char *)hostname, p_data, num_of_gpus,
                               num_of_sockets, mem, num_of_devices, node_p_data,
                               timestamp) < 0) {
@@ -180,18 +181,16 @@ int handle_new_job(json_t *value, dynamic_job_map *job_map, flux_t *h) {
 
   json_t *nodelist = json_object_get(value, "nodelist");
   json_t *jobId_json = json_object_get(value, "id");
-  flux_log(h, LOG_CRIT, "Json is string %d \n", json_is_string(jobId_json));
-  flux_log(h, LOG_CRIT, "Json is integer %d \n", json_is_integer(jobId_json));
-  flux_log(h, LOG_CRIT, "Json is string %d \n", json_is_string(nodelist));
-  flux_log(h, LOG_CRIT, "Json is integer %d \n", json_is_integer(nodelist));
-  if (!json_is_string(nodelist) || !json_is_integer(jobId_json)) {
+  json_t *t_depend = json_object_get(value, "t_depend");
+  if (!json_is_string(nodelist) || !json_is_integer(jobId_json) ||
+      !(json_is_real(t_depend))) {
     flux_log(h, LOG_CRIT, "Unable get nodeList or jobId from job");
     return -1;
   }
-
+  uint64_t real_t_depend = (uint64_t)(json_real_value(t_depend) * 1e6);
   const char *str = json_string_value(nodelist);
   const uint64_t jobId = json_integer_value(jobId_json);
-  if (!str || !jobId) {
+  if (!str || !jobId || !real_t_depend) {
     flux_log(h, LOG_CRIT, "Error in sending job-list or jobId Request");
     return -1;
   }
@@ -201,7 +200,8 @@ int handle_new_job(json_t *value, dynamic_job_map *job_map, flux_t *h) {
   if (find_job_entry(job_map->entries, jobId, job_map->size) == NULL) {
 
     job_map_entry job_entry = {
-        .jobId = jobId, .data = job_data_new(jobId, node_hostname_list, size)};
+        .jobId = jobId,
+        .data = job_data_new(jobId, node_hostname_list, size, real_t_depend)};
 
     if (!job_entry.jobId || !job_entry.data) {
       flux_log(h, LOG_CRIT, "Failed to allocate memory for job entry");

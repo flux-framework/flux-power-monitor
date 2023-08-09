@@ -106,13 +106,12 @@ response_power_data *get_response_power_data(flux_t *h, const char *hostname,
                                 &agg_gpu_power, "m_p", &agg_mem_power,
                                 "r_stime", &start_t, "r_etime", &end_t, "d_p",
                                 &status) < 0) {
-          flux_log_error(
-              h, "error in Unpacking request from children nodes");
+          flux_log_error(h, "error in Unpacking request from children nodes");
           return NULL;
         }
         flux_future_destroy(f);
         power_data = response_power_data_new(hostname, start_time, end_time);
-        power_data->data_presence=status;
+        power_data->data_presence = status;
         power_data->start_time = start_t;
         power_data->end_time = end_t;
         power_data->agg_cpu_power = agg_cpu_power;
@@ -155,7 +154,7 @@ void node_power_info_array_destroy(response_power_data **power_data_nodes,
 void flux_pwr_monitor_get_node_power(flux_t *h, flux_msg_handler_t *mh,
                                      const flux_msg_t *msg, void *arg) {
   if (rank == 0) {
-    uint64_t start_time, end_time,flux_job_id;
+    uint64_t start_time, end_time, flux_job_id;
     json_t *node_list;
     json_t *node_hostname;
     size_t index;
@@ -163,16 +162,13 @@ void flux_pwr_monitor_get_node_power(flux_t *h, flux_msg_handler_t *mh,
 
     response_power_data **power_data_nodes;
     if (flux_request_unpack(msg, NULL, "{s:I,s:I,s:I,s:o}", "start_time",
-                            &start_time, "end_time", &end_time,"flux_jobId",&flux_job_id, "nodelist",
-                            &node_list) < 0) {
-      flux_log_error(
-          h, "error Unpacking get_node_power request from client");
+                            &start_time, "end_time", &end_time, "flux_jobId",
+                            &flux_job_id, "nodelist", &node_list) < 0) {
+      flux_log_error(h, "error Unpacking get_node_power request from client");
       if (flux_respond_error(
               h, msg, errno,
-              "error Unpacking get_node_power request from client") <
-          0)
-        flux_log_error(
-            h, "error Unpacking get_node_power request from client");
+              "error Unpacking get_node_power request from client") < 0)
+        flux_log_error(h, "error Unpacking get_node_power request from client");
       return;
     }
     size_t node_list_size = json_array_size(node_list);
@@ -207,16 +203,16 @@ void flux_pwr_monitor_get_node_power(flux_t *h, flux_msg_handler_t *mh,
 
     json_t *power_payload = json_array();
     for (int i = 0; i < num_nodes_data_present; i++) {
-      json_t *data_obj =
-          json_pack("{s:s,s:s,s:{s:f, s:f,s:f,s:f,s:I,s:I}}", "hostname",
-                    power_data_nodes[i]->hostname, "data_presence",
-                    get_data_presence_string(power_data_nodes[i]->data_presence), "node_power_data",
-                    "node_power", power_data_nodes[i]->agg_node_power,
-                    "cpu_power", power_data_nodes[i]->agg_cpu_power,
-                    "gpu_power", power_data_nodes[i]->agg_gpu_power,
-                    "mem_power", power_data_nodes[i]->agg_mem_power,
-                    "result_start_time", power_data_nodes[i]->start_time,
-                    "result_end_time", power_data_nodes[i]->end_time);
+      json_t *data_obj = json_pack(
+          "{s:s,s:s,s:{s:f, s:f,s:f,s:f,s:I,s:I}}", "hostname",
+          power_data_nodes[i]->hostname, "data_presence",
+          get_data_presence_string(power_data_nodes[i]->data_presence),
+          "node_power_data", "node_power", power_data_nodes[i]->agg_node_power,
+          "cpu_power", power_data_nodes[i]->agg_cpu_power, "gpu_power",
+          power_data_nodes[i]->agg_gpu_power, "mem_power",
+          power_data_nodes[i]->agg_mem_power, "result_start_time",
+          power_data_nodes[i]->start_time, "result_end_time",
+          power_data_nodes[i]->end_time);
       // "data_start_time", power_data_nodes[i]->start_time,
       // "data_end_time", power_data_nodes[i]->end_time);
       json_array_append_new(power_payload, data_obj);
@@ -228,9 +224,9 @@ void flux_pwr_monitor_get_node_power(flux_t *h, flux_msg_handler_t *mh,
     variorum},cpu_power:{CPU power reported by variorum}}}}]
     **/
     if (flux_respond_pack(h, msg, "{s:I,s:I,s:I,s:O}", "start_time", start_time,
-                          "end_time", end_time,"flux_jobId",flux_job_id ,"data", power_payload) < 0) {
-      flux_log_error(
-          h, "error sending output RPC to client");
+                          "end_time", end_time, "flux_jobId", flux_job_id,
+                          "data", power_payload) < 0) {
+      flux_log_error(h, "error sending output RPC to client");
       node_power_info_array_destroy(power_data_nodes, num_nodes_data_present);
       power_data_nodes = NULL;
       return;
@@ -269,7 +265,6 @@ void flux_pwr_monitor_request_power_data_from_node(flux_t *h,
           h, "error responding to flux_pwr_montior.get_node_power request");
     return;
   }
-
   response_power_data *power_data = get_agg_power_data(
       per_node_circular_buffer, node_hostname, start_time, end_time);
   if (power_data == NULL) {
@@ -284,13 +279,12 @@ void flux_pwr_monitor_request_power_data_from_node(flux_t *h,
                      "flux_pwr_montior.request_power_data_from_node request");
     return;
   }
-
   if (flux_respond_pack(
           h, msg, "{s:f,s:f,s:f,s:f,s:I,s:I,s:i}", "n_p",
           power_data->agg_node_power, "c_p", power_data->agg_cpu_power, "g_p",
           power_data->agg_gpu_power, "m_p", power_data->agg_mem_power,
           "r_stime", power_data->start_time, "r_etime", power_data->end_time,
-          "d_p",(int) power_data->data_presence) < 0) {
+          "d_p", (int)power_data->data_presence) < 0) {
     response_power_data_destroy(power_data);
     flux_log_error(
         h, "Error in RPC:flux_pwr_monitor_request_power_data_from_node");
@@ -373,7 +367,7 @@ int mod_main(flux_t *h, int argc, char **argv) {
   if (buffer_size == 0)
     buffer_size = 1000000;
   if (sampling_rate == 0)
-    sampling_rate = 5;
+    sampling_rate = 2;
 
   if (rank == 0) {
     if (hostname_list == NULL) {
@@ -388,7 +382,6 @@ int mod_main(flux_t *h, int argc, char **argv) {
 
     hostname_list[0] = strdup(node_hostname);
   }
-
   // Allocate the mapping array.
   flux_msg_handler_t **handlers = NULL;
 

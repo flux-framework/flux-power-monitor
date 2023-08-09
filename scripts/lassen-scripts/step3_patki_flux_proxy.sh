@@ -8,10 +8,8 @@
 #export PATH=$PATH:$HOME/local/flux_lassen_install/bin
 #export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$HOME/local/flux_lassen_install/lib
 
- module use /usr/global/tools/flux/blueos_3_ppc64le_ib/modulefiles
- module load pmi-shim flux/c0.45.0-s0.25.0
-export PATH=/usr/global/tools/flux/blueos_3_ppc64le_ib/flux-c0.45.0-s0.25.0/bin/:$PATH
-export LD_LIBRARY_PATH=/usr/global/tools/flux/blueos_3_ppc64le_ib/flux-c0.45.0-s0.25.0/lib:$LD_LIBRARY_PATH
+export PATH=$HOME/local/flux_lassen_test/bin/:$PATH
+export LD_LIBRARY_PATH=$HOME/local/flux_lassen_test/lib:$LD_LIBRARY_PATH
 
 echo `date` starting flux-proxy
 flux proxy $(cat flux.uri)

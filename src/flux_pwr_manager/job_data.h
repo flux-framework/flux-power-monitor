@@ -1,9 +1,9 @@
 #ifndef FLUX_JOB_DATA_H
 #define FLUX_JOB_DATA_H
-#include <unistd.h>
 #include "flux/core.h"
 #include "node_power_profile.h"
 #include "power_data.h"
+#include <unistd.h>
 #define HANDLE_ERROR(msg)                                                      \
   do {                                                                         \
     fprintf(stderr, "%s\n", msg);                                              \
@@ -19,6 +19,7 @@ typedef struct {
   double power_current;
   double powercap;
   double max_powercap;
+  uint64_t t_depend;
   POWER_POLICY_TYPE current_power_policy;
   uint64_t latest_entry_time_stamp;
   circular_buffer_t *power_history;
@@ -32,7 +33,7 @@ int job_node_power_update(job_data *job, char *hostname, power_data **p_data,
                           int num_of_gpus, int num_of_sockets, bool mem,
                           int num_of_devices, power_data *node_p_data,
                           uint64_t timestamp);
-job_data *job_data_new(uint64_t jobId, char **node_hostname_list,
-                       int node_size);
+job_data *job_data_new(uint64_t jobId, char **node_hostname_list, int node_size,
+                       uint64_t t_depend);
 void job_data_destroy(job_data *job);
 #endif

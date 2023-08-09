@@ -76,11 +76,11 @@ int node_device_list_init(node_power_profile *node, int num_of_sockets,
   for (i = 0; i < data_size; i++) {
     if (data[i] == NULL)
       HANDLE_ERROR("PANIC: Data supplied has NULL values");
-    device_power_profile* device_data = device_power_profile_new(
+    device_power_profile *device_data = device_power_profile_new(
         data[i]->type, data[i]->device_id, device_history_size);
     if (device_data == NULL)
       HANDLE_ERROR("Unable to allocate memory for new device");
-    node->device_list[i]=device_data;
+    node->device_list[i] = device_data;
   }
   return 0;
 
@@ -115,9 +115,22 @@ int node_device_power_update(node_power_profile *node, power_data **data,
       HANDLE_ERROR("Panic:Device Not found");
     }
     for (int j = 0; j < num_of_devices; j++) {
-      if (node->device_list[i]->device_id == data[j]->device_id)
-        device_power_profile_add_power_data_to_device_history(
-            node->device_list[i], data[j]);
+      fprintf(
+          stderr,
+          "Adding power data for deviceId %ld , with data with values Id: %ld"
+          "power: %f\n",
+          node->device_list[i]->device_id, data[j]->device_id,
+          data[j]->power_value);
+      if (node->device_list[i]->device_id == data[j]->device_id) {
+        fprintf(stderr, "we found a match");
+        if (device_power_profile_add_power_data_to_device_history(
+                node->device_list[i], data[j]) < 0) {
+          fprintf(stderr, "Unable to add the power data to device");
+        }
+        fprintf(stderr, "Current power of device Id %ld and power: %f",
+                node->device_list[i]->device_id,
+                node->device_list[i]->current_power);
+      }
     }
   }
   return 0;

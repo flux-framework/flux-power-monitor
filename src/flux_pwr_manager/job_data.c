@@ -26,8 +26,8 @@ int create_node_power_profile(job_data *job) {
   }
   return 0;
 }
-job_data *job_data_new(uint64_t jobId, char **node_hostname_list,
-                       int node_size) {
+job_data *job_data_new(uint64_t jobId, char **node_hostname_list, int node_size,
+                       uint64_t t_depend) {
   job_data *newJob = (job_data *)calloc(1, sizeof(job_data));
   if (newJob == NULL) {
     fprintf(stderr, "Failed to allocate memory for job_data.\n");
@@ -35,6 +35,7 @@ job_data *job_data_new(uint64_t jobId, char **node_hostname_list,
   }
 
   newJob->jobId = jobId;
+  newJob->t_depend = t_depend;
   newJob->power_history = circular_buffer_new(POWER_HISTORY_SIZE, free);
   if (newJob->power_history == NULL) {
     fprintf(stderr, "Failed to allocate memory for job_power_history.\n");
@@ -99,7 +100,7 @@ void job_data_destroy(job_data *job) {
 int job_power_update(job_data *job, power_data *data) {
   if (job == NULL || data == NULL)
     return -1;
-  job->power_current=data->power_value;
+  job->power_current = data->power_value;
   do_agg(job->power_history, data->power_value, job->power_agg);
   return 0;
 }
@@ -107,6 +108,7 @@ int job_node_power_update(job_data *job, char *hostname, power_data **p_data,
                           int num_of_gpus, int num_of_sockets, bool mem,
                           int num_of_devices, power_data *node_p_data,
                           uint64_t timestamp) {
+
   int found = 0;
   for (int i = 0; i < job->num_of_nodes; i++) {
     if (strcmp(job->node_hostname_list[i], hostname) == 0) {
@@ -118,10 +120,12 @@ int job_node_power_update(job_data *job, char *hostname, power_data **p_data,
           free_power_data_list(p_data, num_of_devices);
           free(p_data);
         }
+      fprintf(stderr, "Job have the data updating node device info\n");
       if ((node_device_power_update(job->node_power_profile_data[i], p_data,
                                     num_of_devices)) < 0) {
-        HANDLE_ERROR("Error adding power data to node history");
+        HANDLE_ERROR("Error adding power data to node device list");
       }
+      fprintf(stderr, "Job have the data updating node  info\n");
 
       if ((node_power_update(job->node_power_profile_data[i], node_p_data)) <
           0) {

@@ -29,8 +29,14 @@ void device_power_profile_destroy(device_power_profile *device_data) {
 }
 int device_power_profile_add_power_data_to_device_history(
     device_power_profile *device_data, power_data *data) {
+  if (device_data == NULL)
+    return -1;
+  if (data == NULL)
+    return -1;
+  device_data->current_power = data->power_value;
   double agg = do_agg(device_data->power_history, data->power_value,
                       device_data->agg_power);
+  fprintf(stderr, "agg value is %f", agg);
   if (agg < 0)
     return -1;
   device_data->agg_power = agg;
