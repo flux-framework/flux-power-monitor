@@ -112,20 +112,10 @@ int job_node_power_update(job_data *job, char *hostname, power_data **p_data,
   int found = 0;
   for (int i = 0; i < job->num_of_nodes; i++) {
     if (strcmp(job->node_hostname_list[i], hostname) == 0) {
-      if (job->node_power_profile_data[i]->device_list == NULL)
-        if (node_device_list_init(job->node_power_profile_data[i],
-                                  num_of_sockets, num_of_gpus, mem, p_data,
-                                  num_of_devices, POWER_HISTORY_SIZE) < 0) {
-          HANDLE_ERROR("Unable to init node device list");
-          free_power_data_list(p_data, num_of_devices);
-          free(p_data);
-        }
-      fprintf(stderr, "Job have the data updating node device info\n");
       if ((node_device_power_update(job->node_power_profile_data[i], p_data,
                                     num_of_devices)) < 0) {
         HANDLE_ERROR("Error adding power data to node device list");
       }
-      fprintf(stderr, "Job have the data updating node  info\n");
 
       if ((node_power_update(job->node_power_profile_data[i], node_p_data)) <
           0) {

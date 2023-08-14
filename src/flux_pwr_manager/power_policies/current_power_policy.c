@@ -55,7 +55,7 @@ double current_power_policy_get_node_powercap(node_power_profile *node_data) {
   }
 
   node_data->powercap = get_powercap(
-      node_data->powercap, node_data->power_current, node_data->max_powercap);
+      node_data->powercap, node_data->power_current, node_data->powerlimit);
 
   return node_data->powercap;
 }

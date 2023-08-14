@@ -4,6 +4,7 @@
 #include "dynamic_job_map.h"
 #include "job_data.h"
 #include "job_power_util.h"
+#include "node_capabilities.h"
 #include "power_policies/current_power_strategy.h"
 #include "power_policies/power_policy.h"
 #include "power_policies/power_policy_manager.h"
@@ -117,7 +118,7 @@ void update_power_distribution_strategy() {
           current_power_strategy,
           job_map_data->entries[i]
               .data->node_power_profile_data[j]
-              ->max_powercap);
+              ->powerlimit);
     }
   }
 }
@@ -147,7 +148,6 @@ void set_powercap() {
  * set.
  */
 void handle_powercap_response(flux_future_t *f, void *args) {
-  bool req_info;
   json_t *device_info;
   char *recv_hostname;
   uint64_t jobId;
@@ -156,9 +156,8 @@ void handle_powercap_response(flux_future_t *f, void *args) {
   job_data *job;
   node_power_profile *node_data;
   json_t *device_value;
-  if (flux_rpc_get_unpack(f, "{s:I,s:s,s:b,s:o}", "jobId", &jobId, "hostname",
-                          &recv_hostname, "req_info", &req_info, "device_array",
-                          &device_info) < 0) {
+  if (flux_rpc_get_unpack(f, "{s:I,s:s,s:O}", "jobId", &jobId, "hostname",
+                          &recv_hostname, "device_array", &device_info) < 0) {
     errmsg = "Unable to unpack the response to flux RPC ";
   }
   if ((job = find_job(job_map_data, jobId)) == NULL) {
@@ -175,34 +174,17 @@ void handle_powercap_response(flux_future_t *f, void *args) {
     device_type type;
     double max_power, min_power, powercap_set;
     device_power_profile *device_data;
-    if (req_info) {
-      if (json_unpack(device_value, "{s:i,s:i,s:f,s:f,s:f}", "type", &type,
-                      "id", &device_id, "max_p", &max_power, "min_p",
-                      &min_power, "pcap_set", &powercap_set) < 0) {
-        errmsg = "Unable to decode json of device info";
-        goto err;
-      }
-
-      if ((device_data = find_device(node_data, type, device_id)) == NULL) {
-        errmsg = "Wrong deviceId found in JSON";
-        goto err;
-      }
-      device_data->min_power = min_power;
-      device_data->max_power = max_power;
-      device_data->powercap = powercap_set;
-    } else {
-      if (json_unpack(device_value, "{s:i,s:i,s:f}", "type", &type, "id",
-                      &device_id, "pcap_set", &powercap_set) < 0) {
-        errmsg = "Unable to decode json of device info";
-        goto err;
-      }
-
-      if ((device_data = find_device(node_data, type, device_id)) == NULL) {
-        errmsg = "Wrong deviceId found in JSON";
-        goto err;
-      }
-      device_data->powercap = powercap_set;
+    if (json_unpack(device_value, "{s:i,s:i,s:f}", "type", &type, "id",
+                    &device_id, "pcap_set", &powercap_set) < 0) {
+      errmsg = "Unable to decode json of device info";
+      goto err;
     }
+
+    if ((device_data = find_device(node_data, type, device_id)) == NULL) {
+      errmsg = "Wrong deviceId found in JSON";
+      goto err;
+    }
+    device_data->powercap = powercap_set;
     if (type == NODE) {
       // redestributing the power of devices based on node powercap;
       current_power_strategy->set_device_power_distribution(node_data,
@@ -234,6 +216,8 @@ int send_powercap_rpc(flux_t *h, int rank, char *hostname) {
     if (job_map_data->entries[i].data == NULL)
       return -1;
     job_data *job_data = job_map_data->entries[i].data;
+    if (job_data == NULL)
+      return -1;
     for (int j = 0; j < job_data->num_of_nodes; j++) {
       if (job_data->node_power_profile_data[j] == NULL)
         return -1;
@@ -246,18 +230,19 @@ int send_powercap_rpc(flux_t *h, int rank, char *hostname) {
       if (rank < 0)
         continue;
       json_t *powercap_payload = json_array();
-      bool request_info = false;
       for (int k = 0; k < node_data->total_num_of_devices; k++) {
         device_power_profile *d_data = node_data->device_list[k];
         if (d_data == NULL)
           continue;
+        // Only include devices where powercap is allowed
         if (!d_data->powercap_allowed)
           continue;
         json_t *device_payload;
-        if (d_data->max_power == 0)
-          request_info = true;
-
         device_payload = json_pack(
+            // c_p:current powercap.
+            // m_p:maximum powercap.
+            //  Using abbrevation to reduce payload size.
+
             "{s:i,s:i,s:f,s:f}", "type", d_data->type, "id", d_data->device_id,
             "c_p", d_data->powercap, "m_p", d_data->max_powercap);
         if (device_payload == NULL) {
@@ -268,12 +253,19 @@ int send_powercap_rpc(flux_t *h, int rank, char *hostname) {
       }
       char *test;
       test = json_dumps(powercap_payload, 0);
-      flux_log(h, LOG_CRIT, "we are sending data for device %s", test);
+      flux_log(
+          h, LOG_CRIT,
+          "we are sending data for device %s ",
+          test );
       flux_future_t *f;
+      // n_c_p:node current powercap.
+      // n_m_p:node maximum powercap.
+      //  Using abbrevation to reduce payload size.
       if (!(f = flux_rpc_pack(h, "flux_pwr_manager.set_powercap", local_rank,
-                              FLUX_RPC_STREAMING, "{s:I,s:s,s:b,s:o}", "jobId",
-                              job_data->jobId, "hostname", node_data->hostname,
-                              "req_info", request_info, "device_array",
+                              FLUX_RPC_STREAMING, "{s:I,s:s,s:f,s:f,s:O}",
+                              "jobId", job_data->jobId, "hostname",
+                              node_data->hostname, "n_c_p", node_data->powercap,
+                              "n_m_p", node_data->powerlimit, "device_array",
                               powercap_payload))) {
         flux_log_error(h, "ERROR In sending RPC for powercap for hostname %s",
                        node_data->hostname);
@@ -302,10 +294,10 @@ int send_powercap_rpc(flux_t *h, int rank, char *hostname) {
 void flux_pwr_manager_set_powercap_cb(flux_t *h, flux_msg_handler_t *mh,
                                       const flux_msg_t *msg, void *arg) {
 
-  bool request_info;
   char *errmsg = "";
   int ret = 0;
   char *current_hostname;
+  double node_current_powercap, node_max_powerlimit;
   char myhostname[256];
   gethostname(myhostname, 256);
   json_t *device_array;
@@ -314,23 +306,31 @@ void flux_pwr_manager_set_powercap_cb(flux_t *h, flux_msg_handler_t *mh,
   int index;
   char *s = malloc(1500);
   json_t *device_info = json_array();
-  if (flux_request_unpack(msg, NULL, "{s:I,s:s,s:b,s:o}", "jobId", &jobId,
-                          "hostname", &current_hostname, "req_info",
-                          &request_info, "device_array", &device_array) < 0) {
+  if (flux_request_unpack(msg, NULL, "{s:I,s:s,s:f,s:f,s:O}", "jobId", &jobId,
+                          "hostname", &current_hostname, "n_c_p",
+                          &node_current_powercap, "n_m_p", &node_max_powerlimit,
+                          "device_array", &device_array) < 0) {
     flux_log_error(h, "flux_pwr_mgr_set_powercap_cb: flux_request_unpack");
     errmsg = "flux_request_unpack failed";
     goto err;
   }
-  if (request_info) {
-    int ret_info = variorum_get_node_power_domain_info_json(&s);
-    flux_log(h, LOG_CRIT, "Result of variorum node_power_domain_info_json %s",
-             s);
+  if (node_current_powercap > 1000.0 && node_current_powercap < 3250.0) {
+    flux_log(h, LOG_CRIT, "setting powercap for Node and the value is %f",
+             node_current_powercap);
+    ret = variorum_cap_best_effort_node_power_limit(node_current_powercap);
+    if (ret != 0) {
+      errmsg = "Variorum unable to set powercap for Node";
+      flux_log(h, LOG_CRIT, "Variorum set node power limit failed!\n");
+      goto err;
+    }
   }
-  // Here the thought process is we are collecting data for all the devices we
-  // are getting result for but only chaning power caps to devices where it is
-  // possible.
+  json_t *node_info;
+  node_info = json_pack("{s:i,s:i,s:f}", "type", 3, "id", 0, "pcap_set",
+                        node_current_powercap);
+  if (node_info == NULL)
+    flux_log_error(h, "Unable to encode node_info actual powercap");
+  json_array_append_new(device_info, node_info);
   json_array_foreach(device_array, index, device_data) {
-    // Right now hardcoding node capabilities to just have only one thing
     device_type type;
     int device_id;
     double powercap;
@@ -338,51 +338,20 @@ void flux_pwr_manager_set_powercap_cb(flux_t *h, flux_msg_handler_t *mh,
     json_t *new_device_info;
     if (json_unpack(device_data, "{s:i,s:i,s:f,s:f}", "type", &type, "id",
                     &device_id, "c_p", &powercap, "m_p", &power_limit) < 0) {
-      flux_log(h, LOG_CRIT, "Some error in unpacking the json");
-
+      flux_log_error(h, "Some error in unpacking the json");
       continue;
     }
-    if (type == NODE) {
-      if (powercap > 1000 && powercap < 3250) {
-        ret = variorum_cap_best_effort_node_power_limit(powercap);
-        if (ret != 0) {
-          errmsg = "Variorum unable to set powercap for Node";
-          flux_log(h, LOG_CRIT, "Variorum set node power limit failed!\n");
-          goto err;
-        }
-      }
-    }
-    if (!request_info) {
-      if ((new_device_info = json_pack("{s:i,s:i,s:f}", "type", type, "id",
-                                       device_id, "pcap_set", powercap)) ==
-          NULL)
-        continue;
-    }
-    if (request_info) {
-      int powercap_set;
-      double max_power, min_power;
-      if (type == GPU) {
-        max_power = 300;
-        min_power = 125;
-        powercap_set = -1;
-      }
-      if (type == NODE) {
-        max_power = 3250;
-        min_power = 1000;
-        powercap_set = powercap;
-      }
-
-      new_device_info = json_pack("{s:i,s:i,s:f,s:f,s:f}", "type", type, "id",
-                                  device_id, "max_p", max_power, "min_p",
-                                  min_power, "pcap_set", powercap_set);
-      if (new_device_info == NULL)
-        continue;
-    }
+    if ((new_device_info = json_pack("{s:i,s:i,s:f}", "type", type, "id",
+                                     device_id, "pcap_set", powercap)) == NULL)
+      continue;
     json_array_append_new(device_info, new_device_info);
   }
-  if (flux_respond_pack(h, msg, "{s:I,s:s,s:b,s:o}", "jobId", jobId, "hostname",
-                        current_hostname, "req_info", request_info,
-                        "device_array", device_info) < 0) {
+  char *test;
+  test = json_dumps(device_info, 0);
+  flux_log(h, LOG_CRIT, "we are sending response  %s", test);
+
+  if (flux_respond_pack(h, msg, "{s:I,s:s,s:O}", "jobId", jobId, "hostname",
+                        current_hostname, "device_array", device_info) < 0) {
     errmsg = "Unable to send RPC response to flux_pwr_manager.set_powercap";
     goto err;
   }
@@ -397,7 +366,7 @@ err:
   if (flux_respond_error(h, msg, errno, errmsg) < 0)
     flux_log_error(h, "flux_respond_error");
 }
-
+void validate_jobId(uint64_t jobId) {}
 void handle_get_node_power_rpc(flux_future_t *f, void *args) {
   uint64_t start_time, end_time;
   uint64_t jobId;
@@ -414,7 +383,6 @@ void handle_get_node_power_rpc(flux_future_t *f, void *args) {
   free(print_test);
   for (int i = 0; i < job_map_data->size; i++) {
     if (job_map_data->entries[i].jobId == jobId) {
-      flux_log(flux_handle, LOG_CRIT, "In the parse handle_get_node_power_rpc");
       parse_power_payload(array, job_map_data->entries[i].data, end_time);
     }
   }
@@ -424,6 +392,7 @@ void handle_get_node_power_rpc(flux_future_t *f, void *args) {
 void get_job_power(flux_t *h, job_data *job) {
   // Getting the current time
   struct timeval tv;
+  flux_future_t *f;
   uint64_t current_time;
   gettimeofday(&tv, NULL);
   current_time = tv.tv_sec * (uint64_t)1000000 + tv.tv_usec;
@@ -438,7 +407,6 @@ void get_job_power(flux_t *h, job_data *job) {
     json_array_append_new(nodelist, json_string(job->node_hostname_list[i]));
   }
 
-  flux_future_t *f;
   if (!(f = flux_rpc_pack(h, "flux_pwr_monitor.get_node_power", 0, 0,
                           "{s:I,s:I,s:I,s:o}", "start_time", start_time,
                           "end_time", current_time, "flux_jobId", job->jobId,
@@ -493,6 +461,98 @@ void get_flux_jobs(flux_t *h) {
 
   flux_future_destroy(f);
 }
+static void fill_device_capability_from_json(json_t *device_json,
+                                             device_capability *device,
+                                             device_type type) {
+  device->type = type;
+  device->count = json_integer_value(json_object_get(device_json, "count"));
+
+  json_t *power_capping = json_object_get(device_json, "power_capping");
+  device->min_power = json_integer_value(json_object_get(power_capping, "min"));
+  device->max_power = json_integer_value(json_object_get(power_capping, "max"));
+  device->powercap_allowed = (device->min_power != 0 && device->max_power != 0);
+}
+
+void handle_get_node_power_capabilities_rpc(flux_future_t *f, void *args) {
+  uint64_t jobId;
+  char *hostname;
+  json_t *devices_array;
+
+  if (flux_rpc_get_unpack(f, "{s:I,s:s,s:O}", "jobId", &jobId, "hostname",
+                          &hostname, "devices", &devices_array) < 0) {
+    flux_log_error(flux_handle, "Unable to parse RPC data");
+    return;
+  }
+
+  node_capabilities capabilities = {0};
+  size_t index;
+  json_t *device_json;
+
+  json_array_foreach(devices_array, index, device_json) {
+    int type = json_integer_value(json_object_get(device_json, "type"));
+    type = (device_type)type;
+    if (type == GPU) {
+      fill_device_capability_from_json(device_json, &capabilities.gpus, type);
+    } else if (type == CPU) {
+      fill_device_capability_from_json(device_json, &capabilities.cpus, type);
+    } else if (type == MEM) {
+      fill_device_capability_from_json(device_json, &capabilities.mem, type);
+    } else if (type == NODE) {
+      fill_device_capability_from_json(device_json, &capabilities.node, type);
+    } else if (type == SOCKETS) {
+      fill_device_capability_from_json(device_json, &capabilities.sockets,
+                                       type);
+    }
+  }
+
+  job_data *j_data = find_job(job_map_data, jobId);
+  if (j_data == NULL)
+    flux_log_error(
+        flux_handle,
+        "Unable to find job when handling flux rpc for power capabilities");
+  node_power_profile *n_data = find_node(j_data, hostname);
+  if (n_data == NULL)
+    flux_log_error(
+        flux_handle,
+        "Unable to find node when handling flux rpc for power capabilities");
+  node_device_list_init(n_data, &capabilities, 100);
+  flux_future_destroy(f);
+}
+
+void node_cap_rpc(flux_t *h, uint64_t jobId, char *hostname) {
+
+  flux_future_t *f;
+  if (!(f = flux_rpc_pack(h, "flux_pwr_manager.get_node_power_capabilities", 0,
+                          0, "jobId", jobId, "hostname", hostname))) {
+    flux_log(h, LOG_CRIT, "Error in sending job-list Request");
+    return;
+  }
+  flux_log(h, LOG_CRIT, "DONE 1 with jobId %ld", jobId);
+  if (flux_future_then(f, -1., handle_get_node_power_capabilities_rpc, NULL) <
+      0) {
+    flux_log(h, LOG_CRIT,
+             "Error in setting flux_future_then for RPC get_node_power");
+    return;
+  }
+}
+
+int add_node_capabiliity_to_job(flux_t *h, job_data *data) {
+  if (data == NULL)
+    return -1;
+  for (int i = 0; i < data->num_of_nodes; i++) {
+    node_power_profile *n_data = data->node_power_profile_data[i];
+    if (n_data == NULL)
+      continue;
+    if (n_data->total_num_of_devices != 0)
+      return 0;
+    else {
+      node_cap_rpc(h, data->jobId, n_data->hostname);
+      return 1;
+    }
+  }
+  return -1;
+}
+
 static void timer_handler(flux_reactor_t *r, flux_watcher_t *w, int revents,
                           void *arg) {
   if (rank == 0) {
@@ -508,6 +568,13 @@ static void timer_handler(flux_reactor_t *r, flux_watcher_t *w, int revents,
     flux_t *h = (flux_t *)arg;
     get_flux_jobs(h);
     flux_log(h, LOG_CRIT, "number of job %ld", job_map_data->size);
+    for (int i = 0; i < job_map_data->size; i++) {
+      int ret = add_node_capabiliity_to_job(h, job_map_data->entries[i].data);
+      if (ret != 0) {
+        flux_log(h, LOG_CRIT, "Still Waiting for node Info");
+        return;
+      }
+    }
     for (int i = 0; i < job_map_data->size; i++) {
       get_job_power(h, job_map_data->entries[i].data);
     }
@@ -535,8 +602,8 @@ static void timer_handler(flux_reactor_t *r, flux_watcher_t *w, int revents,
     }
   }
 }
-void flux_pwr_manager_get_hostname(flux_t *h, flux_msg_handler_t *mh,
-                                   const flux_msg_t *msg, void *arg) {
+void flux_pwr_manager_get_hostname_cb(flux_t *h, flux_msg_handler_t *mh,
+                                      const flux_msg_t *msg, void *arg) {
   const char *hostname;
   uint32_t sender;
   if (flux_request_unpack(msg, NULL, "{s:I,s:s}", "rank", &sender, "hostname",
@@ -566,11 +633,114 @@ error:
           "Error:unable to unpack flux_power_monitor.collect_power ") < 0)
     flux_log_error(h, "%s: flux_respond_error", __FUNCTION__);
 }
+
+// Helper function to append a device's information and capabilities to JSON
+static void append_single_device_to_json(device_capability *device,
+                                         json_t *devices) {
+  if (device->count > 0) {
+    json_array_append_new(
+        devices, json_pack("{s:i,s:i,s:{s:i,s:i}}", "type", device->type,
+                           "count", device->count, "power_capping", "min",
+                           device->min_power, "max", device->max_power));
+  }
+}
+// Helper function to handle variorum and parse capabilities
+static int handle_variorum_and_parse(char *s, node_capabilities *node) {
+  int ret = variorum_get_node_power_domain_info_json(&s);
+  if (ret != 0) {
+    return -1; // Variorum get domain power failed
+  }
+
+  if ((parse_node_capabilities(s, node)) < 0) {
+    return -2; // Unable to parse variorum domain power info
+  }
+  return 0;
+}
+/**
+ * {
+    "jobId": 12345,
+    "hostname": "my-host",
+    "devices": [
+        {
+            "type": "GPU",
+            "count": 2,
+            "power_capping": {"min": 10, "max": 50}
+        },
+        {
+            "type": "CPU",
+            "count": 16,
+            "power_capping": {"min": 5, "max": 30}
+        },
+        ...
+    ]
+}
+ if power_capping contains both min and max as 0, we are assuming it does not
+support power capping.
+*/
+void flux_pwr_manager_get_node_power_capabilities_cb(flux_t *h,
+                                                     flux_msg_handler_t *mh,
+                                                     const flux_msg_t *msg,
+                                                     void *arg) {
+  uint64_t jobId;
+  char *recv_hostname;
+  char *errmsg = "";
+  char *s = malloc(1500);
+  if (!s) {
+    errmsg = "Memory allocation failed";
+  }
+
+  node_capabilities node = {0};
+  json_t *devices = json_array();
+
+  if (flux_request_unpack(msg, NULL, "{s:I,s:s}", "jobId", &jobId, "hostname",
+                          &recv_hostname) < 0) {
+    errmsg = "Unable to unpack RPC";
+    goto err;
+  }
+
+  int variorum_result = handle_variorum_and_parse(s, &node);
+  if (variorum_result == -1) {
+    free(s);
+    errmsg = ("Variorum get domain power failed");
+    goto err;
+  } else if (variorum_result == -2) {
+    errmsg = ("Unable to parse variorum domain power info");
+    free(s);
+    goto err;
+  }
+
+  // Append each device's info to the JSON
+  append_single_device_to_json(&node.gpus, devices);
+  append_single_device_to_json(&node.mem, devices);
+  append_single_device_to_json(&node.sockets, devices);
+  append_single_device_to_json(&node.cpus, devices);
+  append_single_device_to_json(&node.node, devices);
+
+  if (flux_respond_pack(h, msg, "{s:I,s:s,s:O}", "jobId", jobId, "hostname",
+                        recv_hostname, "devices", devices) < 0) {
+    errmsg = ("Unable to reply for the get node power capabilities RPC");
+    free(s);
+    goto err;
+  }
+  json_decref(devices); // Free the devices JSON array
+
+  free(s);
+err:
+  if (devices != NULL)
+    json_decref(devices); // Free the devices JSON array
+
+  if (flux_respond_error(h, msg, errno, errmsg) < 0)
+
+    flux_log_error(h, "%s: flux_respond_error", __FUNCTION__);
+}
+
 static const struct flux_msg_handler_spec htab[] = {
     {FLUX_MSGTYPE_REQUEST, "flux_pwr_manager.set_powercap",
      flux_pwr_manager_set_powercap_cb, 0},
+    {FLUX_MSGTYPE_REQUEST, "flux_pwr_manager.get_node_power_capabilities",
+     flux_pwr_manager_get_node_power_capabilities_cb, 0},
     {FLUX_MSGTYPE_REQUEST, "flux_pwr_manager.get_hostname",
-     flux_pwr_manager_get_hostname, 0},
+     flux_pwr_manager_get_hostname_cb, 0},
     FLUX_MSGHANDLER_TABLE_END,
 };
 
