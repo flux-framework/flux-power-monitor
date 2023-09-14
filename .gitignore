@@ -2,6 +2,7 @@
 **/Makefile
 **/*.la
 **/*.o
+**/*.csv
 **/*.lo
 /ar-lib
 /mdate-sh

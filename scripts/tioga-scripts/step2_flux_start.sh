@@ -12,7 +12,7 @@ rm flux.uri
 
 # flux mini run -N=2 flux start -o,--setattr=log-stderr-level=7, -v bash -c 'echo "ssh://$(hostname)$(flux getattr local-uri | sed -e 's!local://!!')">> flux.uri; sleep inf' 
 
-flux mini run -N=1 flux start -o,--setattr=log-stderr-level=7 -v bash -c 'echo "ssh://$(hostname)$(flux getattr local-uri | sed -e 's!local://!!')">> flux.uri; sleep inf' 
+flux mini run -N=2 flux start -o,--setattr=log-stderr-level=7 -v bash -c 'echo "ssh://$(hostname)$(flux getattr local-uri | sed -e 's!local://!!')">> flux.uri; sleep inf' 
 # -- next step: flux proxy $(cat flux.uri)
 # -- to analyze KVS: flux kvs dir -R . 
 #Login node/single node, 8 ranks.
