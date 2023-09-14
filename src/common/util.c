@@ -152,13 +152,33 @@ response_power_data *get_agg_power_data(circular_buffer_t *buffer,
 void getNodeList(char *nodeData, char ***hostList, int *size) {
   char *hostname;
   char *ranges;
+  // If nodeData doesn't contain '[', it's a single node
+    if (strchr(nodeData, '[') == NULL) {
+        *hostList = realloc(*hostList, (*size + 1) * sizeof(char *));
+        if (*hostList == NULL) {
+            fprintf(stderr, "Failed to allocate memory.\n");
+            return;
+        }
+
+        (*hostList)[*size] = malloc(strlen(nodeData) + 1); // +1 for null terminator
+        if ((*hostList)[*size] == NULL) {
+            fprintf(stderr, "Failed to allocate memory.\n");
+            return;
+        }
+
+        strcpy((*hostList)[*size], nodeData);
+        (*size)++;
+        return;
+    }
 
   // Split the nodeData
   hostname = strtok(nodeData, "[");
+
   if (hostname == NULL) {
-    fprintf(stderr, "Failed to split nodeData by '['.\n");
+    fprintf(stderr, "Node Data is NULL \n");
     return;
   }
+fprintf(stderr,"node data %s\n",nodeData);
   ranges = strtok(NULL, "[");
   if (ranges == NULL) {
     fprintf(stderr, "Failed to split nodeData by '['.\n");

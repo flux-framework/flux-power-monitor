@@ -2,11 +2,13 @@
 #include "config.h"
 #endif
 #include "device_power_info.h"
+#include "flux_pwr_logging.h"
 #include "job_data.h"
 #include "job_power_util.h"
 #include "node_power_profile.h"
 #include "util.h"
 #include <jansson.h>
+
 void parse_device_capability(json_t *json_array, device_capability *capability,
                              const char *device_str, device_type type,
                              int default_count) {
@@ -45,6 +47,23 @@ void parse_power_capping_range(json_t *json_array,
     }
   }
 }
+
+json_t *parse_stringified_json(json_t *stringified_json) {
+  if (!json_is_string(stringified_json)) {
+    return NULL;
+  }
+
+  const char *json_str = json_string_value(stringified_json);
+  json_error_t error;
+  json_t *parsed_json = json_loads(json_str, 0, &error);
+
+  if (!parsed_json) {
+    log_error("Error parsing stringified JSON: %s\n", error.text);
+  }
+
+  return parsed_json;
+}
+
 void parse_control_capabilities(json_t *control, json_t *control_range,
                                 node_capabilities *result) {
   size_t index;
@@ -70,34 +89,68 @@ int parse_node_capabilities(char *json_str, node_capabilities *result) {
   json_t *root = json_loads(json_str, 0, &error);
 
   if (!root) {
-    fprintf(stderr, "Error parsing JSON: %s\n", error.text);
+    log_error("Error parsing JSON: %s\n", error.text);
     return -1;
   }
+  // json_t *measurement_str = json_object_get(root, "measurement");
+  // log_error( "measurment is %s\n", json_dumps(measurement_str, 0));
+  // json_t *measurement = parse_stringified_json(measurement_str);
+  //
+  // json_t *control_str = json_object_get(root, "control");
+  // json_t *control = parse_stringified_json(control_str);
+  //
+  // json_t *control_range_str = json_object_get(root, "control_range");
+  // json_t *control_range = parse_stringified_json(control_range_str);
+  // log_error(
+  //         "We are getting this input when parsing node capab %s and "
+  //         "measurement %s\n",
+  //         json_str, json_dumps(measurement, 0));
+  // if (measurement) {
+  //   log_error( "measurement\n");
+  // Right now hard code this for lassen systems
+  result->gpus.type = GPU;
+  result->gpus.count = 4;
+  result->gpus.powercap_allowed = true;
+  result->gpus.min_power = 125.0;
+  result->gpus.max_power = 300.0;
+  result->cpus.type = CPU;
+  result->cpus.count = 2;
+  result->mem.type = MEM;
+  result->mem.count = 1;
+  result->node.type = NODE;
+  result->node.count = 1;
+  result->node.powercap_allowed = true;
+  result->node.max_power = 3050.0;
+  result->node.min_power = 500.0;
+  // parse_device_capability(measurement, &(result->gpus), "power_gpu", GPU,
+  // 4); parse_device_capability(measurement, &(result->cpus), "power_cpu",
+  // CPU, 2); parse_device_capability(measurement, &(result->mem),
+  // "power_mem", MEM, 1); parse_device_capability(measurement,
+  // &(result->sockets), "power_socket",
+  //                         SOCKETS, 2);
+  // parse_device_capability(measurement, &(result->node), "power_node", NODE,
+  //                         1);
 
-  json_t *measurement = json_object_get(root, "measurement");
-  json_t *control = json_object_get(root, "control");
-  json_t *control_range = json_object_get(root, "control_range");
-
-  if (measurement) {
-    parse_device_capability(measurement, &(result->gpus), "power_gpu", GPU, 4);
-    parse_device_capability(measurement, &(result->cpus), "power_cpu", CPU, 2);
-    parse_device_capability(measurement, &(result->mem), "power_mem", MEM, 1);
-    parse_device_capability(measurement, &(result->sockets), "power_socket",
-                            SOCKETS, 2);
-    parse_device_capability(measurement, &(result->node), "power_node", NODE,
-                            1);
-
-    if (result->cpus.count > 0) {
-      result->sockets.count = 0; // Prioritize CPUs over sockets for measurement
-    }
-  }
-
-  if (control && control_range) {
-    parse_control_capabilities(control, control_range, result);
-    if (result->cpus.count > 0) {
-      result->sockets.count = 0; // Prioritize CPUs over sockets for control
-    }
-  }
+  //   if (result->cpus.count > 0) {
+  //     result->sockets.count = 0; // Prioritize CPUs over sockets for
+  //     measurement
+  //   }
+  // }
+  //
+  // if (control && control_range) {
+  //
+  //   log_error( "control\n");
+  //   parse_control_capabilities(control, control_range, result);
+  //   if (result->cpus.count > 0) {
+  //     result->sockets.count = 0; // Prioritize CPUs over sockets for control
+  //   }
+  // }
+  // if (measurement)
+  //   json_decref(measurement);
+  // if (control)
+  //   json_decref(control);
+  // if (control_range)
+  //   json_decref(control_range);
 
   json_decref(root);
   return 0;
@@ -142,73 +195,89 @@ device_power_profile *find_device(node_power_profile *node, device_type type,
 
 int parse_power_payload(json_t *payload, job_data *job, uint64_t timestamp) {
   int rc = -1;
-  size_t index;
+  size_t index_json;
   json_t *value;
   double job_power_data_sum = 0;
   int num_of_valid_hostname = 0;
 
-  json_array_foreach(payload, index, value) {
+  json_array_foreach(payload, index_json, value) {
     power_data data = {0};
     const char *hostname;
     int num_of_gpus = 0;
     int num_of_sockets = 0;
     int num_of_devices = 0;
+    int num_of_cpus = 0;
     bool mem = false;
     double node_power;
     double cpu_power;
     double gpu_power;
     double mem_power;
     uint64_t end_time, start_time;
-
+    node_power_profile *n_data;
     if (json_unpack(value, "{s:s, s:{s:F, s:F, s:F, s:F, s:I, s:I}}",
                     "hostname", &hostname, "node_power_data", "node_power",
                     &node_power, "cpu_power", &cpu_power, "gpu_power",
                     &gpu_power, "mem_power", &mem_power, "result_start_time",
                     &start_time, "result_end_time", &end_time) < 0) {
-      fprintf(stderr, "Error unpacking power data");
-      continue;
-    }
-    if (gpu_power != -1)
-      num_of_gpus = 4;
-    if (mem_power != -1)
-      mem = 1;
-    num_of_sockets = 2;
-    num_of_devices = num_of_sockets + num_of_gpus + mem;
-    power_data **p_data = malloc(sizeof(power_data *) * num_of_devices);
-    if (p_data == NULL) {
-      fprintf(stderr, "Unable to allocate memory for power_data while parsing "
-                      "json response\n");
+      log_error("Error unpacking power data");
       continue;
     }
 
-    for (int i = 0; i < num_of_sockets; i++) {
-      p_data[i] = power_data_new(CPU, cpu_power, i);
-      if (p_data[i] == NULL) {
-        fprintf(stderr, "Failed to allocate memory for socket power data\n");
+    // if (gpu_power != -1)
+    //   num_of_gpus = 4;
+    // if (mem_power != -1)
+    //   mem = 1;
+    // num_of_sockets = 2;
+    // num_of_devices = num_of_sockets + num_of_gpus + mem;
+    n_data = find_node(job, (char *)hostname);
+    if (!n_data) {
+      log_message("Hostname %s not in job when parsing power data.", hostname);
+    }
+    num_of_devices = n_data->total_num_of_devices;
+    num_of_gpus = n_data->num_of_gpus;
+    num_of_sockets = n_data->num_of_socket;
+    num_of_cpus = n_data->num_of_cpus;
+    power_data **p_data = malloc(sizeof(power_data *) * num_of_devices);
+    if (p_data == NULL) {
+      log_error("Unable to allocate memory for power_data while parsing "
+                "json response\n");
+      continue;
+    }
+    int index = 0;
+    for (int i = 0; i < num_of_sockets; i++, index++) {
+      p_data[index] = power_data_new(SOCKETS, cpu_power, i);
+      if (p_data[index] == NULL) {
+        log_error("Failed to allocate memory for socket power data\n");
         free_power_data_list(p_data, i);
         continue;
       }
     }
-    for (int i = num_of_sockets; i < num_of_sockets + num_of_gpus; i++) {
-      p_data[i] = power_data_new(GPU, gpu_power, i);
-      if (p_data[i] == NULL) {
-        fprintf(stderr, "Failed to allocate memory for GPU power data\n");
+    for (int i = 0; i < num_of_cpus; i++, index++) {
+      p_data[index] = power_data_new(CPU, cpu_power, i);
+      if (p_data[index] == NULL) {
+        log_error("Failed to allocate memory for socket power data\n");
         free_power_data_list(p_data, i);
         continue;
       }
     }
-    for (int i = num_of_gpus + num_of_sockets; i < num_of_devices; i++) {
-      p_data[i] = power_data_new(MEM, mem_power, i);
-      if (p_data[i] == NULL) {
-        fprintf(stderr, "Failed to allocate memory for memory power data\n");
+    for (int i = 0; i < num_of_gpus; i++, index++) {
+      p_data[index] = power_data_new(GPU, gpu_power, i);
+      if (p_data[index] == NULL) {
+        log_error("Failed to allocate memory for GPU power data\n");
         free_power_data_list(p_data, i);
         continue;
       }
+    }
+    p_data[index] = power_data_new(MEM, mem_power, 0);
+    if (p_data[index] == NULL) {
+      log_error("Failed to allocate memory for memory power data\n");
+      free_power_data_list(p_data, index);
+      continue;
     }
 
     power_data *node_p_data = malloc(sizeof(power_data));
     if (node_p_data == NULL) {
-      fprintf(stderr, "Unable to allocate memory for node power data\n");
+      log_error("Unable to allocate memory for node power data\n");
       free_power_data_list(p_data, num_of_devices);
       continue;
     }
@@ -218,7 +287,7 @@ int parse_power_payload(json_t *payload, job_data *job, uint64_t timestamp) {
     if (job_node_power_update(job, (char *)hostname, p_data, num_of_gpus,
                               num_of_sockets, mem, num_of_devices, node_p_data,
                               timestamp) < 0) {
-      fprintf(stderr, "Unable to add power_data for %s\n", hostname);
+      log_error("Unable to add power_data for %s\n", hostname);
       power_data_destroy(node_p_data);
       free_power_data_list(p_data, num_of_devices);
       continue;
@@ -232,7 +301,7 @@ int parse_power_payload(json_t *payload, job_data *job, uint64_t timestamp) {
 
   power_data *j_data = malloc(sizeof(power_data));
   if (j_data == NULL) {
-    fprintf(stderr, "Unable to allocate memory for job power data\n");
+    log_error("Unable to allocate memory for job power data\n");
     goto cleanup;
   }
   j_data->type = JOB;

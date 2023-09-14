@@ -161,6 +161,7 @@ void flux_pwr_monitor_get_node_power(flux_t *h, flux_msg_handler_t *mh,
     size_t num_nodes_data_present = 0;
 
     response_power_data **power_data_nodes;
+    flux_log(h,LOG_CRIT,"Got request for data");
     if (flux_request_unpack(msg, NULL, "{s:I,s:I,s:I,s:o}", "start_time",
                             &start_time, "end_time", &end_time, "flux_jobId",
                             &flux_job_id, "nodelist", &node_list) < 0) {

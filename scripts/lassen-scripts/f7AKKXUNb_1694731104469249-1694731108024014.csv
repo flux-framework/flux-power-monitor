@@ -1,0 +1,3 @@
+hostname,data_presence,node_power_data,node_power,cpu_power,gpu_power,mem_power,result_start_time,result_end_time
+tioga23,FULL,"{'node_power': 123.85249999999999, 'cpu_power': 123.85249999999999, 'gpu_power': 0.0, 'mem_power': 0.0, 'result_start_time': 1694731105210948, 'result_end_time': 1694731107209868}",123.85249999999999,123.85249999999999,0.0,0.0,1694731105210948,1694731107209868
+tioga34,FULL,"{'node_power': 120.71600000000001, 'cpu_power': 120.71600000000001, 'gpu_power': 0.0, 'mem_power': 0.0, 'result_start_time': 1694731105236584, 'result_end_time': 1694731107233713}",120.71600000000001,120.71600000000001,0.0,0.0,1694731105236584,1694731107233713

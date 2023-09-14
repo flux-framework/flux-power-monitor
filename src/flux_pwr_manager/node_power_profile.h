@@ -9,6 +9,7 @@ typedef struct {
   char *hostname;
   int num_of_gpus;
   int num_of_socket; // applies to its devices.
+  int num_of_cpus;
   double power_agg;
   double max_power;
   double min_power;

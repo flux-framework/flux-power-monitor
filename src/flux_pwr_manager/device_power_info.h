@@ -12,7 +12,7 @@ typedef struct {
   uint64_t device_id;
   double current_power;
   double powercap;
-  double max_powercap;
+  double powerlimit;
   bool powercap_allowed;
   POWER_POLICY_TYPE device_power_policy;
   circular_buffer_t *power_history;

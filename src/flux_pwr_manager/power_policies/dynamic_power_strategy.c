@@ -1,41 +1,42 @@
 #if HAVE_CONFIG_H
 #include "config.h"
 #endif
-#include "current_power_policy.h"
-#include "current_power_strategy.h"
+#include "dynamic_power_policy.h"
+#include "dynamic_power_strategy.h"
 #include <math.h>
-void set_device_power_policy(node_power_profile *node_data) {
+static void set_device_power_policy(node_power_profile *node_data) {
   if (node_data == NULL)
     return;
   for (int i = 0; i < node_data->total_num_of_devices; i++) {
     if (node_data->device_list[i] != NULL)
-      node_data->device_list[i]->device_power_policy = CURRENT_POWER;
+      node_data->device_list[i]->device_power_policy = DYNAMIC_POWER;
   }
 }
-void set_node_power_policy(job_data *job_data) {
+static void set_node_power_policy(job_data *job_data) {
   if (job_data == NULL)
     return;
   for (int i = 0; i < job_data->num_of_nodes; i++) {
     if (job_data->node_power_profile_data[i] != NULL)
       job_data->node_power_profile_data[i]->node_current_power_policy =
-          CURRENT_POWER;
+          DYNAMIC_POWER;
   }
 }
-void set_job_power_policy(dynamic_job_map *job_map_data) {
+static void set_job_power_policy(dynamic_job_map *job_map_data) {
   if (job_map_data == NULL)
     return;
   for (int i = 0; i < job_map_data->size; i++) {
-    job_map_data->entries[i].data->current_power_policy = CURRENT_POWER;
+    job_map_data->entries[i].data->current_power_policy = DYNAMIC_POWER;
   }
 }
 
-double get_job_powercap(job_data *job_data) {
+static double get_job_powercap(job_data *job_data) {
   if (job_data == NULL)
     return -1;
-  return current_power_policy_get_job_powercap(job_data);
+  return dynamic_power_policy_get_job_powercap(job_data);
 }
-// Right now this strategy will only equally distrbiute the power to each job.
-void set_job_power_distribution(dynamic_job_map *job_map,
+// Right now this strategy will only equally distrbiute the power to each job
+// with each node in the job as a basis
+static void set_job_power_distribution(dynamic_job_map *job_map,
                                 double global_power_cap) {
   if (job_map == NULL)
     return;
@@ -54,18 +55,18 @@ void set_job_power_distribution(dynamic_job_map *job_map,
 
     for (int i = 0; i < job_map->size; i++)
 
-      job_map->entries[i].data->max_powercap =
+      job_map->entries[i].data->powerlimit =
           global_power_cap *
           (int)(job_map->entries[i].data->num_of_nodes / total_num_nodes);
 
     // Setting the power cap to the maximum allowed when a job is initalized.
     if (job_map->entries[i].data->powercap == 0.0)
       job_map->entries[i].data->powercap =
-          job_map->entries[i].data->max_powercap;
+          job_map->entries[i].data->powerlimit;
   }
 }
-// Right now this strategy will only equally distrbiute the power to each node.
-void set_node_power_distribution(job_data *job_data, double job_power_cap) {
+// Right now this strategy will only equally distrbiute the power to each node
+static void set_node_power_distribution(job_data *job_data, double job_power_cap) {
   if (job_data == NULL)
     return;
   if (job_power_cap == 0)
@@ -84,7 +85,7 @@ void set_node_power_distribution(job_data *job_data, double job_power_cap) {
 
 // Right now this strategy will only equally distrbiute the power to each
 // device.
-void set_device_power_distribution(node_power_profile *node_data,
+static void set_device_power_distribution(node_power_profile *node_data,
                                    double node_cap) {
   if (node_data == NULL)
     return;
@@ -106,35 +107,35 @@ void set_device_power_distribution(node_power_profile *node_data,
     if (node_data->device_list[i] == NULL)
       return;
     if (node_data->device_list[i]->powercap_allowed) {
-      node_data->device_list[i]->max_powercap =
+      node_data->device_list[i]->powerlimit =
           node_cap / powercap_allowed_devices;
     } else {
-      node_data->device_list[i]->max_powercap = -1;
+      node_data->device_list[i]->powerlimit = -1;
     }
     if (node_data->device_list[i]->powercap == 0.0)
       node_data->device_list[i]->powercap =
-          node_data->device_list[i]->max_powercap;
+          node_data->device_list[i]->powerlimit;
   }
 }
-double get_device_powercap(device_power_profile *device_data) {
+static double get_device_powercap(device_power_profile *device_data) {
   if (device_data == NULL)
     return -1;
-  if (device_data->max_powercap == -1)
+  if (device_data->powerlimit == -1)
     return 0;
-  return current_power_policy_get_device_powercap(device_data);
+  return dynamic_power_policy_get_device_powercap(device_data);
 }
-double get_node_powercap(node_power_profile *node_data) {
+ static double get_node_powercap(node_power_profile *node_data) {
   if (node_data == NULL)
     return -1;
-  return current_power_policy_get_node_powercap(node_data);
+  return dynamic_power_policy_get_node_powercap(node_data);
 }
-void current_power_policy_init(power_strategy *policy) {
+void dynamic_power_policy_init(power_strategy *policy) {
   if (policy == NULL)
     return;
   policy->set_device_power_policy = set_device_power_policy;
   policy->set_job_power_policy = set_job_power_policy;
   policy->set_node_power_policy = set_node_power_policy;
-  // policy->get_node_powercap = get_node_powercap;
+  policy->get_node_powercap = get_node_powercap;
   // policy->get_job_powercap = get_job_powercap;
   policy->get_device_powercap = get_device_powercap;
   policy->set_device_power_distribution = set_device_power_distribution;

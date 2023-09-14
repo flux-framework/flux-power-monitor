@@ -18,8 +18,10 @@ typedef struct {
   double power_agg;
   double power_current;
   double powercap;
-  double max_powercap;
+  double powerlimit;
   uint64_t t_depend;
+  double max_power;
+  double min_power;
   POWER_POLICY_TYPE current_power_policy;
   uint64_t latest_entry_time_stamp;
   circular_buffer_t *power_history;

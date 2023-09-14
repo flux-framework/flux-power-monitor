@@ -1,6 +1,7 @@
 #if HAVE_CONFIG_H
 #include "config.h"
 #endif
+#include "flux_pwr_logging.h"
 #include "node_power_profile.h"
 #include "util.h"
 #include <stdio.h>
@@ -26,9 +27,9 @@ node_power_profile *node_power_profile_new(char *hostname,
   node->power_history = circular_buffer_new(node->history_size, free);
   if (node->power_history == NULL)
     HANDLE_ERROR("Failed to create circular_buffer for node_power_history");
-  node->node_current_power_policy = CURRENT_POWER;
   node->powercap_allowed = false;
-  node->device_power_policy = CURRENT_POWER;
+  node->max_power = 0;
+  node->min_power = 0;
   return node;
 
 cleanup:
@@ -79,9 +80,11 @@ int node_device_list_init(node_power_profile *node, node_capabilities *d_data,
 
   node->num_of_socket = d_data->sockets.count;
   node->num_of_gpus = d_data->gpus.count;
+  node->num_of_cpus = d_data->cpus.count;
   node->total_num_of_devices = d_data->sockets.count + d_data->cpus.count +
                                d_data->gpus.count + d_data->mem.count;
-
+  if (node->total_num_of_devices == 0)
+    return -1;
   node->device_list =
       malloc(sizeof(device_power_profile *) * node->total_num_of_devices);
   if (!node->device_list) {
@@ -90,7 +93,6 @@ int node_device_list_init(node_power_profile *node, node_capabilities *d_data,
   }
 
   int index = 0;
-
   // Initialize GPUs
   for (int i = 0; i < d_data->gpus.count; i++, index++) {
     if (init_device(&(d_data->gpus), node->device_list, index,
@@ -153,7 +155,9 @@ int node_device_power_update(node_power_profile *node, power_data **data,
       HANDLE_ERROR("Panic:Device Not found");
     }
     for (int j = 0; j < num_of_devices; j++) {
-      if (node->device_list[i]->type == data[j]->device_id) {
+      if (!data[j])
+        continue;
+      if (node->device_list[i]->type == data[j]->type) {
         if (node->device_list[i]->device_id == data[j]->device_id) {
           if (device_power_profile_add_power_data_to_device_history(
                   node->device_list[i], data[j]) < 0) {
@@ -168,11 +172,18 @@ cleanup:
   return -1;
 }
 int node_power_update(node_power_profile *node, power_data *data) {
+  log_message("node powercap_allowed %d node powercap %f node max_power limit "
+              "%f node max_power %f node min power %f node current_power %f",
+              node->powercap_allowed, node->powercap, node->powerlimit,
+              node->max_power, node->min_power, node->power_current);
   if (data->type != NODE)
     HANDLE_ERROR("Wrong Data supplied");
   node->power_current = data->power_value;
   if (node->power_history == NULL)
     HANDLE_ERROR("node power history is NULL");
+  log_message(
+      "data we are getting for node from power monitor type %d power %f",
+      data->type, data->power_value);
   // First finding the average and then only add the item to buffer as we want
   // to keep a running average of all the items in the circular_buffer
   double node_power_agg =

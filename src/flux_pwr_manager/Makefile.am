@@ -4,11 +4,13 @@ lib_LTLIBRARIES = \
 									flux_pwr_manager.la
 flux_pwr_manager_la_SOURCES = \
 											flux_pwr_manager.c \
+											flux_pwr_logging.c \
 											job_data.c \
 											node_power_profile.c \
 											dynamic_job_map.c \
 											job_power_util.c \
 											device_power_info.c \
+											json_utility.c \
 											power_util.c
 flux_pwr_manager_la_CPPFLAGS = \
 												$(AM_CPPFLAGS) \

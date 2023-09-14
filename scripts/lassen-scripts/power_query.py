@@ -3,6 +3,7 @@ import argparse
 import flux.job
 import flux.job.JobID
 from flux.job.JobID import id_parse
+import pandas as pd
 
 
 def getJobInfo(handle, jobId):
@@ -64,21 +65,44 @@ def main():
         print("Issue in getting time value")
         return
     print(
-            f"making an RPC call for start_time: {startTime}, end_time {endTime} and nodeList {hostList} and jobId {id_parse(jobId)}"
+        f"making an RPC call for start_time: {startTime}, end_time {endTime} and"
+        f" nodeList {hostList} and jobId {id_parse(jobId)}"
     )
-    print(
-        h.rpc(
-            "flux_pwr_monitor.get_node_power",
-            {
-                "start_time": startTime,
-                "end_time": endTime,
-                "nodelist": hostList,
-                "flux_jobId":id_parse(jobId)
-            },
-            nodeid=0,
-            flags=flux.constants.FLUX_RPC_STREAMING,
-        ).get()
-    )
+    result_json_string = h.rpc(
+        "flux_pwr_monitor.get_node_power",
+        {
+            "start_time": startTime,
+            "end_time": endTime,
+            "nodelist": hostList,
+            "flux_jobId": id_parse(jobId),
+        },
+        nodeid=0,
+        flags=flux.constants.FLUX_RPC_STREAMING,
+    ).get()
+    print(result_json_string)
+    if result_json_string is None:
+        print("ERROR: RPC has no result")
+        return
+    data = result_json_string["data"]
+    if data is None:
+        print("The power data is missing")
+        return
+    # Process the data list into a list of flattened dictionaries
+    processed_data = []
+    for item in data:
+        print(data)
+        print(item)
+        node_power_data = item.pop("node_power_data")
+        flattened = {**item, **node_power_data}
+
+        processed_data.append(flattened)
+    # Create DataFrame from the processed data
+    df = pd.DataFrame(processed_data)
+
+    print(df)
+
+    # Save the DataFrame to a csv file
+    df.to_csv(f"{jobId}_{startTime}-{endTime}.csv", index=False)
     # print(
     #     h.rpc(
     #         "flux_pwr_monitor.get_node_power",

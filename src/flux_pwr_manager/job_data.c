@@ -50,7 +50,6 @@ job_data *job_data_new(uint64_t jobId, char **node_hostname_list, int node_size,
     free(newJob);
     return NULL;
   }
-
   for (int i = 0; i < node_size; i++) {
     newJob->node_hostname_list[i] = strdup(node_hostname_list[i]);
     if (newJob->node_hostname_list[i] == NULL) {
@@ -70,6 +69,7 @@ job_data *job_data_new(uint64_t jobId, char **node_hostname_list, int node_size,
     job_data_destroy(newJob);
     return NULL;
   }
+  
   return newJob;
 }
 void job_data_destroy(job_data *job) {
