@@ -1,5 +1,5 @@
-#ifndef FLUX_DYNAMIC_POWER_POLICY_H
-#define FLUX_DYNAMIC_POWER_POLICY_H
+#ifndef FLUX_PWR_MANAGER_DYNAMIC_POWER_POLICY_H
+#define FLUX_PWR_MANAGER_DYNAMIC_POWER_POLICY_H
 #include "job_data.h"
 double dynamic_power_policy_get_job_powercap(job_data *job_data);
 double

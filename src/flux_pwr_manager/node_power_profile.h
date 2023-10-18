@@ -1,5 +1,5 @@
-#ifndef FLUX_NODE_POWER_PROFILE_H
-#define FLUX_NODE_POWER_PROFILE_H
+#ifndef FLUX_PWR_MANAGER_NODE_POWER_PROFILE_H
+#define FLUX_PWR_MANAGER_NODE_POWER_PROFILE_H
 #include "circular_buffer.h"
 #include "device_power_info.h"
 #include "node_capabilities.h"

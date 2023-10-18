@@ -1,5 +1,5 @@
-#ifndef FLUX_JOB_POWER_UTIL_H
-#define FLUX_JOB_POWER_UTIL_H
+#ifndef FLUX_PWR_MANAGER_JOB_POWER_UTIL_H
+#define FLUX_PWR_MANAGER_JOB_POWER_UTIL_H
 #include "dynamic_job_map.h"
 #include "flux/core.h"
 #include "job_data.h"

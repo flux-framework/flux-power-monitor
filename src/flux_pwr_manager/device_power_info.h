@@ -1,5 +1,5 @@
-#ifndef FLUX_POWER_INFO_H
-#define FLUX_POWER_INFO_H
+#ifndef FLUX_PWR_MANAGER_POWER_INFO_H
+#define FLUX_PWR_MANAGER_POWER_INFO_H
 #include "circular_buffer.h"
 #include "device_type.h"
 #include "power_data.h"

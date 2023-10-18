@@ -1,5 +1,5 @@
-#ifndef FLUX_POWER_CAPPING_UTIL_H
-#define FLUX_POWER_CAPPING_UTIL_H
+#ifndef FLUX_PWR_MANAGER_POWER_CAPPING_UTIL_H
+#define FLUX_PWR_MANAGER_POWER_CAPPING_UTIL_H
 #include "power_data.h"
 #include "job_data.h"
 #include "dynamic_job_map.h"

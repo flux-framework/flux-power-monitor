@@ -1,5 +1,5 @@
-#ifndef FLUX_POWER_LOGGING_H
-#define FLUX_POWER_LOGGING_H
+#ifndef FLUX_PWR_MANAGER_POWER_LOGGING_H
+#define FLUX_PWR_MANAGER_POWER_LOGGING_H
 #include <string.h>
 #include <sys/types.h>
 #include <unistd.h>

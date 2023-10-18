@@ -1,5 +1,5 @@
-#ifndef FLUX_DYNAMIC_JOB_MAP_H
-#define FLUX_DYNAMIC_JOB_MAP_H
+#ifndef FLUX_PWR_MANAGER_DYNAMIC_JOB_MAP_H
+#define FLUX_PWR_MANAGER_DYNAMIC_JOB_MAP_H
 #include "job_data.h"
 typedef struct {
   uint64_t jobId;

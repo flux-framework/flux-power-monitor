@@ -1,5 +1,5 @@
-#ifndef FLUX_POWER_POLICY_MANAGER_H
-#define FLUX_POWER_POLICY_MANAGER_H
+#ifndef FLUX_PWR_MANAGER_POWER_POLICY_MANAGER_H
+#define FLUX_PWR_MANAGER_POWER_POLICY_MANAGER_H
 #include "device_power_info.h"
 #include "dynamic_job_map.h"
 #include "job_data.h"

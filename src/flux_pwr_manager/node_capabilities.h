@@ -1,5 +1,5 @@
-#ifndef FLUX_NODE_CAPABILIITIES_H
-#define FLUX_NODE_CAPABILIITIES_H
+#ifndef FLUX_PWR_MANAGER_NODE_CAPABILIITIES_H
+#define FLUX_PWR_MANAGER_NODE_CAPABILIITIES_H
 #include "device_type.h"
 #include <stdbool.h>
 #include <unistd.h>

@@ -1,5 +1,5 @@
-#ifndef FLUX_JOB_DATA_H
-#define FLUX_JOB_DATA_H
+#ifndef FLUX_PWR_MANAGER_JOB_DATA_H
+#define FLUX_PWR_MANAGER_JOB_DATA_H
 #include "flux/core.h"
 #include "node_power_profile.h"
 #include "power_data.h"

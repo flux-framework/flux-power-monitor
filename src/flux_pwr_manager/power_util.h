@@ -1,5 +1,5 @@
-#ifndef FLUX_POWER_UTIL_H
-#define FLUX_POWER_UTIL_H
+#ifndef FLUX_PWR_MANAGER_POWER_UTIL_H
+#define FLUX_PWR_MANAGER_POWER_UTIL_H
 #include "dynamic_job_map.h"
 #include "job_data.h"
 #include "power_policies/power_policy_manager.h"
