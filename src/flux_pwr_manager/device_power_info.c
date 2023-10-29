@@ -1,5 +1,4 @@
-#if HAVE_CONFIG_Hdevi
-  node->device_power_policy = CURRENT_POWER;
+#if HAVE_CONFIG_H
 #include "config.h"
 #endif
 #include "device_power_info.h"

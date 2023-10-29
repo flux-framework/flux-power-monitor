@@ -1,6 +1,6 @@
 #include "json_utility.h"
 json_t *create_device_json(device_type type, int device_id, double powercap) {
-  return json_pack("{s:i,s:i,s:f}", "type", type, "id", device_id, "pcap_set",
+  return json_pack("{s:i s:i s:f}", "type", type, "id", device_id, "pcap_set",
                    powercap);
 }
 
@@ -15,7 +15,7 @@ void append_to_device_info(json_t *device_info, json_t *new_device_info) {
 void append_single_device_to_json(device_capability *device, json_t *devices) {
   if (device->count > 0) {
     json_array_append_new(
-        devices, json_pack("{s:i,s:i,s:{s:f,s:f}}", "type", device->type,
+        devices, json_pack("{s:i s:i s:{s:f s:f}}", "type", device->type,
                            "count", device->count, "power_capping", "min",
                            device->min_power, "max", device->max_power));
   }

@@ -13,6 +13,6 @@ response_power_data *get_agg_power_data(circular_buffer_t *buffer,
 void response_power_data_destroy(response_power_data *data);
 
 double do_agg(circular_buffer_t *buffer,double current_power_value,double old_power_value);
-void getNodeList(char *nodeData, char ***hostList, int *size);
+int getNodeList(char *nodeData, char ***hostList, int *size);
 uint64_t get_device_id(char* name);
 #endif

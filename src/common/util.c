@@ -93,9 +93,9 @@ response_power_data *get_agg_power_data(circular_buffer_t *buffer,
   // If startTime or endTime are not within the range of timestamps currently in
   // the buffer, adjust them to represent the earliest and latest timestamps,
   // respectively.
-  if (start_time > end_time) 
+  if (start_time > end_time)
     return power_data;
-  
+
   if ((start_time > earliest || start_time < latest) &&
       (end_time > earliest && end_time < latest)) {
     power_data->data_presence = FULL;
@@ -149,46 +149,45 @@ response_power_data *get_agg_power_data(circular_buffer_t *buffer,
   return power_data;
 }
 
-void getNodeList(char *nodeData, char ***hostList, int *size) {
+int getNodeList(char *nodeData, char ***hostList, int *size) {
   char *hostname;
   char *ranges;
   // If nodeData doesn't contain '[', it's a single node
-    if (strchr(nodeData, '[') == NULL) {
-        *hostList = realloc(*hostList, (*size + 1) * sizeof(char *));
-        if (*hostList == NULL) {
-            fprintf(stderr, "Failed to allocate memory.\n");
-            return;
-        }
-
-        (*hostList)[*size] = malloc(strlen(nodeData) + 1); // +1 for null terminator
-        if ((*hostList)[*size] == NULL) {
-            fprintf(stderr, "Failed to allocate memory.\n");
-            return;
-        }
-
-        strcpy((*hostList)[*size], nodeData);
-        (*size)++;
-        return;
+  if (strchr(nodeData, '[') == NULL) {
+    *hostList = realloc(*hostList, (*size + 1) * sizeof(char *));
+    if (*hostList == NULL) {
+      fprintf(stderr, "Failed to allocate memory.\n");
+      return -1;
     }
+
+    (*hostList)[*size] = malloc(strlen(nodeData) + 1); // +1 for null terminator
+    if ((*hostList)[*size] == NULL) {
+      fprintf(stderr, "Failed to allocate memory.\n");
+      return -1;
+    }
+
+    strcpy((*hostList)[*size], nodeData);
+    (*size)++;
+    return -1;
+  }
 
   // Split the nodeData
   hostname = strtok(nodeData, "[");
 
   if (hostname == NULL) {
     fprintf(stderr, "Node Data is NULL \n");
-    return;
+    return -1;
   }
-fprintf(stderr,"node data %s\n",nodeData);
   ranges = strtok(NULL, "[");
   if (ranges == NULL) {
     fprintf(stderr, "Failed to split nodeData by '['.\n");
-    return;
+    return -1;
   }
 
   // Trim the trailing ']' from ranges
   if (ranges[strlen(ranges) - 1] != ']') {
     fprintf(stderr, "Failed to parse range correctly.\n");
-    return;
+    return -1;
   }
   ranges[strlen(ranges) - 1] = 0;
 
@@ -199,7 +198,7 @@ fprintf(stderr,"node data %s\n",nodeData);
       int start, end;
       if (sscanf(range, "%d-%d", &start, &end) != 2) {
         fprintf(stderr, "Failed to parse range correctly.\n");
-        return;
+        return -1;
       }
 
       for (int i = start; i <= end; i++) {
@@ -207,7 +206,7 @@ fprintf(stderr,"node data %s\n",nodeData);
         *hostList = realloc(*hostList, (*size + 1) * sizeof(char *));
         if (*hostList == NULL) {
           fprintf(stderr, "Failed to allocate memory.\n");
-          return;
+          return -1;
         }
 
         // Allocate memory for the new string
@@ -215,7 +214,7 @@ fprintf(stderr,"node data %s\n",nodeData);
             malloc(strlen(hostname) + 10); // enough for the number
         if ((*hostList)[*size] == NULL) {
           fprintf(stderr, "Failed to allocate memory.\n");
-          return;
+          return -1;
         }
 
         // Create the string
@@ -229,7 +228,7 @@ fprintf(stderr,"node data %s\n",nodeData);
       *hostList = realloc(*hostList, (*size + 1) * sizeof(char *));
       if (*hostList == NULL) {
         fprintf(stderr, "Failed to allocate memory.\n");
-        return;
+        return -1;
       }
 
       // Allocate memory for the new string
@@ -237,7 +236,7 @@ fprintf(stderr,"node data %s\n",nodeData);
           malloc(strlen(hostname) + 10); // enough for the number
       if ((*hostList)[*size] == NULL) {
         fprintf(stderr, "Failed to allocate memory.\n");
-        return;
+        return -1;
       }
 
       // Create the string
@@ -249,4 +248,5 @@ fprintf(stderr,"node data %s\n",nodeData);
 
     range = strtok(NULL, ",");
   }
+  return 0;
 }

@@ -8,6 +8,7 @@
 #include "job_power_util.h"
 #include "json_utility.h"
 #include "node_capabilities.h"
+#include "node_manager/node_manager.h"
 #include "power_policies/dynamic_power_strategy.h"
 #include "power_policies/power_policy.h"
 #include "power_policies/power_policy_manager.h"
@@ -18,6 +19,7 @@
 #include <assert.h>
 #include <czmq.h>
 #include <flux/core.h>
+#include <flux/jobtap.h>
 #include <jansson.h>
 #include <stdint.h>
 #include <string.h>
@@ -27,7 +29,10 @@
 #define HOSTNAME_SIZE 256
 #define MAX_NODE_POWER 3050
 #define MIN_NODE_POWER 500
-static uint32_t rank, size;
+#define SAMPLING_RATE 100
+#define BUFFER_SIZE 120
+int num_of_job = 0;
+uint64_t current_job_id[100];
 #define MY_MOD_NAME "flux_pwr_manager"
 const char default_service_name[] = MY_MOD_NAME;
 static double global_power_budget;
@@ -37,6 +42,7 @@ static power_strategy *current_power_strategy;
 static char node_hostname[HOSTNAME_SIZE];
 static char **hostname_list;
 static dynamic_job_map *job_map_data;
+static uint32_t rank, size;
 static node_capabilities current_node_capabilities = {0};
 
 // static const int NOFLAGS=0;
@@ -157,7 +163,7 @@ int process_device_info(json_t *device_info, node_power_profile *node_data) {
     double powercap_set;
     device_power_profile *device_data;
 
-    if (json_unpack(device_value, "{s:i,s:i,s:f}", "type", &type, "id",
+    if (json_unpack(device_value, "{s:i s:i s:f}", "type", &type, "id",
                     &device_id, "pcap_set", &powercap_set) < 0) {
       log_message(NULL, "Unable to decode json of device info");
       return -1;
@@ -195,7 +201,7 @@ json_t *construct_payload(node_power_profile *node_data) {
       continue;
 
     json_t *device_payload;
-    device_payload = json_pack("{s:i,s:i,s:f,s:f}", "type", d_data->type, "id",
+    device_payload = json_pack("{s:i s:i s:f s:f}", "type", d_data->type, "id",
                                d_data->device_id, "c_p", d_data->powercap,
                                "m_p", d_data->powerlimit);
 
@@ -224,7 +230,7 @@ void handle_powercap_response(flux_future_t *f, void *args) {
   char *errmsg = "";
   job_data *job;
   node_power_profile *node_data;
-  if (flux_rpc_get_unpack(f, "{s:I,s:s,s:O}", "jobId", &jobId, "hostname",
+  if (flux_rpc_get_unpack(f, "{s:I s:s s:O}", "jobId", &jobId, "hostname",
                           &recv_hostname, "device_array", &device_info) < 0) {
     errmsg = "Unable to unpack the response to flux RPC ";
     goto err;
@@ -336,7 +342,7 @@ int send_powercap_rpc(flux_t *h, int rank, char *hostname) {
                   rank, node_data->powercap);
       flux_future_t *f = flux_rpc_pack(
           h, "flux_pwr_manager.set_powercap", local_rank, FLUX_RPC_STREAMING,
-          "{s:I,s:s,s:f,s:f,s:O}", "jobId", job_data->jobId, "hostname",
+          "{s:I s:s s:f s:f s:O}", "jobId", job_data->jobId, "hostname",
           node_data->hostname, "n_c_p", node_data->powercap, "n_m_p",
           node_data->powerlimit, "device_array", powercap_payload);
       if (!f) {
@@ -352,8 +358,7 @@ int send_powercap_rpc(flux_t *h, int rank, char *hostname) {
                     "get_node_power");
         return -1;
       }
-
-      json_decref(powercap_payload);
+        json_decref(powercap_payload);
     }
   }
   return 0;
@@ -370,7 +375,7 @@ int process_device_array(json_t *device_array, json_t *device_info) {
     double power_limit;
     json_t *new_device_info;
 
-    if (json_unpack(device_data, "{s:i,s:i,s:f,s:f}", "type", &type, "id",
+    if (json_unpack(device_data, "{s:i s:i s:f s:f}", "type", &type, "id",
                     &device_id, "c_p", &powercap, "m_p", &power_limit) < 0) {
       log_message("JSON:Error unpacking the device data from JSON");
       return -1; // Error
@@ -410,7 +415,7 @@ void flux_pwr_manager_set_powercap_cb(flux_t *h, flux_msg_handler_t *mh,
   json_t *device_info = json_array();
   double node_max_powerlimit = 0;
 
-  if (flux_request_unpack(msg, NULL, "{s:I,s:s,s:f,s:f,s:O}", "jobId", &jobId,
+  if (flux_request_unpack(msg, NULL, "{s:I s:s s:f s:f s:O}", "jobId", &jobId,
                           "hostname", &current_hostname, "n_c_p",
                           &node_current_powercap, "n_m_p", &node_max_powerlimit,
                           "device_array", &device_array) < 0) {
@@ -439,7 +444,7 @@ void flux_pwr_manager_set_powercap_cb(flux_t *h, flux_msg_handler_t *mh,
     return;
   }
 
-  if (flux_respond_pack(h, msg, "{s:I,s:s,s:O}", "jobId", jobId, "hostname",
+  if (flux_respond_pack(h, msg, "{s:I s:s s:O}", "jobId", jobId, "hostname",
                         current_hostname, "device_array", device_info) < 0) {
     send_error(msg,
                "Unable to send RPC response to flux_pwr_manager.set_powercap");
@@ -452,7 +457,7 @@ void handle_get_node_power_rpc(flux_future_t *f, void *args) {
   uint64_t start_time, end_time;
   uint64_t jobId;
   json_t *array;
-  if (flux_rpc_get_unpack(f, "{s:I,s:I,s:I,s:O}", "start_time", &start_time,
+  if (flux_rpc_get_unpack(f, "{s:I s:I s:I s:O}", "start_time", &start_time,
                           "end_time", &end_time, "flux_jobId", &jobId, "data",
                           &array) < 0) {
     log_error("RPC_INFO:Unable to parse RPC data");
@@ -484,14 +489,14 @@ void get_job_power(flux_t *h, job_data *job) {
     json_array_append_new(nodelist, json_string(job->node_hostname_list[i]));
   }
   if (!(f = flux_rpc_pack(h, "flux_pwr_monitor.get_node_power", 0,
-                          FLUX_RPC_STREAMING, "{s:I,s:I,s:I,s:o}", "start_time",
+                          FLUX_RPC_STREAMING, "{s:I s:I s:I s:o}", "start_time",
                           start_time, "end_time", current_time, "flux_jobId",
                           job->jobId, "nodelist", nodelist))) {
     json_decref(nodelist);
     log_message("RPC_INFO:Error in sending get job power Request");
     return;
   }
-  json_decref(nodelist);
+  // json_decref(nodelist);
   if (flux_future_then(f, -1., handle_get_node_power_rpc, NULL) < 0) {
     log_message(
         "RPC_INFO:Error in setting flux_future_then for RPC get_node_power");
@@ -526,8 +531,8 @@ void get_flux_jobs(flux_t *h) {
   log_message("JOB_INFO:Number of jobs after parsing is %ld",
               job_map_data->size);
 
-  json_decref(
-      jobs); // Decrement reference count of jobs after it's no longer needed
+  // json_decref(
+  //     jobs); // Decrement reference count of jobs after it's no longer needed
 
   flux_future_destroy(f);
 }
@@ -536,7 +541,7 @@ void handle_get_node_power_capabilities_rpc(flux_future_t *f, void *args) {
   uint64_t jobId;
   char *hostname;
   json_t *devices_array;
-  if (flux_rpc_get_unpack(f, "{s:I,s:s,s:O}", "jobId", &jobId, "hostname",
+  if (flux_rpc_get_unpack(f, "{s:I s:s s:O}", "jobId", &jobId, "hostname",
                           &hostname, "devices", &devices_array) < 0) {
     log_error("RPC_INFO:Unable to parse RPC data");
     return;
@@ -593,7 +598,7 @@ void node_cap_rpc(flux_t *h, uint64_t jobId, char *hostname) {
   flux_future_t *f;
   int rank = find_rank_hostname(hostname);
   if (!(f = flux_rpc_pack(h, "flux_pwr_manager.get_node_power_capabilities",
-                          rank, 0, "{s:I,s:s}", "jobId", jobId, "hostname",
+                          rank, 0, "{s:I s:s}", "jobId", jobId, "hostname",
                           hostname))) {
     log_message("RPC_INFO:Error in sending node_cap  Request");
     return;
@@ -707,7 +712,7 @@ void flux_pwr_manager_get_hostname_cb(flux_t *h, flux_msg_handler_t *mh,
   const char *hostname;
   uint32_t sender;
   char *errmsg = "";
-  if (flux_request_unpack(msg, NULL, "{s:I,s:s}", "rank", &sender, "hostname",
+  if (flux_request_unpack(msg, NULL, "{s:I s:s}", "rank", &sender, "hostname",
                           &hostname) < 0) {
     errmsg = "Unable to unpack hostname rpc";
     goto error;
@@ -776,7 +781,7 @@ void flux_pwr_manager_get_node_power_capabilities_cb(flux_t *h,
 
   json_t *devices = json_array();
 
-  if (flux_request_unpack(msg, NULL, "{s:I,s:s}", "jobId", &jobId, "hostname",
+  if (flux_request_unpack(msg, NULL, "{s:I s:s}", "jobId", &jobId, "hostname",
                           &recv_hostname) < 0) {
     errmsg = "Unable to unpack RPC";
     goto err;
@@ -799,7 +804,7 @@ void flux_pwr_manager_get_node_power_capabilities_cb(flux_t *h,
   append_single_device_to_json(&current_node_capabilities.cpus, devices);
   append_single_device_to_json(&current_node_capabilities.node, devices);
 
-  if (flux_respond_pack(h, msg, "{s:I,s:s,s:O}", "jobId", jobId, "hostname",
+  if (flux_respond_pack(h, msg, "{s:I s:s s:O}", "jobId", jobId, "hostname",
                         recv_hostname, "devices", devices) < 0) {
     errmsg = ("Unable to reply for the get node power capabilities RPC");
     goto err;
@@ -864,6 +869,117 @@ err:
   if (flux_respond_error(h, msg, errno, errmsg) < 0)
     log_error("%s: flux_respond_error", __FUNCTION__);
 }
+
+void handle_jobtap_nodelist_rpc(flux_future_t *f, void *args) {
+  char **job_hostname_list = NULL;
+  int size = 0;
+  char *topic = (char *)args;
+  char *node_string;
+  uint64_t id;
+  // const void *data;
+  // int len;
+
+  // Get the raw data from the future
+  // if (flux_rpc_get_raw(f, &data, &len) < 0) {
+  //   log_error("RPC_INFO: Unable to get raw data from future");
+  //   return;
+  // }
+
+  // log_message("RPC_INFO: Raw data: %.*s", len, (const char *)data);
+
+  if (flux_rpc_get_unpack(f, "{s:{s:I s:s}}", "job", "id", &id, "nodelist",
+                          &node_string) < 0) {
+    log_error("RPC_INFO:Unable to parse RPC data %s",
+              flux_future_error_string(f));
+    flux_future_destroy(f);
+    return;
+  }
+  log_message("nodelist %s", node_string);
+
+  int ret = getNodeList((char *)node_string, &job_hostname_list, &size);
+  log_message("ret is %d and size is %d ", ret, size);
+  if (ret < 0) {
+    log_message("Unable to get nodelist");
+    flux_future_destroy(f);
+    return;
+  }
+  for (int i = 0; i < size; i++)
+    log_message("RPC: hostname list %s topic %s", job_hostname_list[i]);
+  flux_future_destroy(f);
+}
+
+void flux_pwr_manager_job_notification_rpc_cb(flux_t *h, flux_msg_handler_t *mh,
+                                              const flux_msg_t *msg,
+                                              void *args) {
+  flux_future_t *f;
+  char *topic;
+  uint64_t id;
+  int userId;
+  double t_submit;
+  uint32_t state = FLUX_JOB_STATE_ACTIVE | FLUX_JOB_STATE_INACTIVE;
+
+  if (flux_request_unpack(msg, NULL, "{s:s s:I s:f s:i}", "topic", &topic, "id",
+                          &id, "t_submit", &t_submit, "userId", &userId) < 0) {
+    log_error("Job Tap Giving error");
+    return;
+  }
+
+  log_message("RPC_INFO: TOPIC %s Job Info %ld with time submit %f", topic, id,
+              t_submit);
+
+  json_t *attrs_array = json_array();
+  if (!attrs_array) {
+    log_error("JSON_ERROR:Unable to create attrs array for nodelist");
+    return;
+  }
+
+  if (json_array_append_new(attrs_array, json_string("nodelist")) == -1) {
+    log_error("JSON_ERROR:Unable to append to attrs array");
+    json_decref(attrs_array);
+    return;
+  }
+  struct timespec req, rem;
+
+  // Set the sleep time: 500 milliseconds
+  // 1 millisecond = 1,000,000 nanoseconds
+  req.tv_sec = 0;               // 0 seconds
+  req.tv_nsec = 500 * 1000000L; // 500 million nanoseconds (500 milliseconds)
+
+  // Sleep is necessary as run state does not have any data regarding job
+  // nodelist
+  if (nanosleep(&req, &rem) < 0) {
+    log_error("Error in Sleep during flux_pwr_manager job_notify");
+  }
+  f = flux_rpc_pack(h, "job-list.list-id", FLUX_NODEID_ANY, 0, "{s:I s:[s]}",
+                    "id", id, "attrs", "nodelist");
+  if (!f) {
+    log_error("RPC_ERROR:Unable to send RPC to get job info in jobtap %d");
+    return;
+  }
+
+  if (flux_future_then(f, -1., handle_jobtap_nodelist_rpc, topic) < 0) {
+    log_message(
+        "RPC_INFO:Error in setting flux_future_then for RPC get_node_power");
+    flux_future_destroy(f); // Clean up the future object
+    return;
+  }
+}
+
+void flux_pwr_manager_notify_node(flux_t *h, flux_msg_handler_t *mh,
+                                  const flux_msg_t *msg, void *args) {}
+
+void flux_pwr_manager_jobtap_destructor_cb(flux_t *h, flux_msg_handler_t *mh,
+                                           const flux_msg_t *msg, void *args) {
+  char **hostname_list;
+  int size;
+  bool terminated;
+  if (flux_request_unpack(msg, NULL, "{s:b}", "terminated", terminated) < 0) {
+    log_error("RPC_ERROR:Unpacking jobtap destructor");
+  }
+
+  // DO whatever we have to do when jobtap is down
+  //
+}
 static const struct flux_msg_handler_spec htab[] = {
     {FLUX_MSGTYPE_REQUEST, "flux_pwr_manager.set_powercap",
      flux_pwr_manager_set_powercap_cb, 0},
@@ -875,6 +991,10 @@ static const struct flux_msg_handler_spec htab[] = {
      flux_pwr_manager_get_node_power_capabilities_cb, 0},
     {FLUX_MSGTYPE_REQUEST, "flux_pwr_manager.get_hostname",
      flux_pwr_manager_get_hostname_cb, 0},
+    {FLUX_MSGTYPE_REQUEST, "flux_pwr_manager.job_notify",
+     flux_pwr_manager_job_notification_rpc_cb, 0},
+    {FLUX_MSGTYPE_REQUEST, "flux_pwr_manager.jobtap_destructor_notify",
+     flux_pwr_manager_jobtap_destructor_cb, 0},
     FLUX_MSGHANDLER_TABLE_END,
 };
 
@@ -897,6 +1017,8 @@ int mod_main(flux_t *h, int argc, char **argv) {
 
     dynamic_power_policy_init(current_power_strategy);
   }
+  node_manager_init(h, rank, size, node_hostname, SAMPLING_RATE * BUFFER_SIZE,
+                    SAMPLING_RATE);
   max_global_powerlimit = size * MAX_NODE_POWER;
   min_global_powerlimit = size * MIN_NODE_POWER;
   if (max_global_powerlimit == 0 || min_global_powerlimit == 0)
@@ -938,7 +1060,7 @@ int mod_main(flux_t *h, int argc, char **argv) {
                 "flux_pwr_manager.get_hostname", // char *topic
                 0,                   // uint32_t nodeid (FLUX_NODEID_ANY,
                 FLUX_RPC_NORESPONSE, // int flags (FLUX_RPC_NORESPONSE,,
-                "{s:I,s:s}", "rank", rank, "hostname", node_hostname);
+                "{s:I s:s}", "rank", rank, "hostname", node_hostname);
   // All ranks set a handler for the timer.
   flux_watcher_t *timer_watch_p = flux_timer_watcher_create(
       flux_get_reactor(h), 10.0, 5.0, timer_handler, h);
@@ -947,7 +1069,6 @@ int mod_main(flux_t *h, int argc, char **argv) {
 
   // Run!
   assert(flux_reactor_run(flux_get_reactor(h), 0) >= 0);
-
   // On unload, shutdown the handlers.
   if (rank == 0) {
     flux_msg_handler_delvec(handlers);
@@ -960,7 +1081,8 @@ int mod_main(flux_t *h, int argc, char **argv) {
     free(hostname_list);
     // free(current_power_strategy);
   }
+  node_manager_destructor();
+
   return 0;
 }
-
 MOD_NAME(MY_MOD_NAME);

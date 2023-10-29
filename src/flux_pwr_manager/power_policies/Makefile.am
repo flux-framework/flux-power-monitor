@@ -6,7 +6,7 @@ libpower_policy_la_SOURCES = \
 														 uniform_power_policy.c \
 														 uniform_power_strategy.c \
 														 dynamic_power_policy.c \
-														 dynamic_power_strategy.c
+														 dynamic_power_strategy.c 
 libpower_policy_la_CPPFLAGS = \
     $(AM_CPPFLAGS) \
     $(FLUX_CORE_CFLAGS) \

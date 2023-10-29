@@ -97,11 +97,11 @@ response_power_data *get_response_power_data(flux_t *h, const char *hostname,
       if (i > 0) {
         flux_future_t *f = flux_rpc_pack(
             h, "flux_pwr_monitor.request_power_data_from_node", i,
-            FLUX_RPC_STREAMING, "{s:I,s:I,s:s}", "start_time", start_time,
+            FLUX_RPC_STREAMING, "{s:I s:I s:s}", "start_time", start_time,
             "end_time", end_time, "node_hostname", hostname);
         if (f == NULL)
           goto error;
-        if (flux_rpc_get_unpack(f, "{s:f,s:f,s:f,s:f,s:I,s:I,s:i}", "n_p",
+        if (flux_rpc_get_unpack(f, "{s:f s:f s:f s:f s:I s:I s:i}", "n_p",
                                 &agg_node_power, "c_p", &agg_cpu_power, "g_p",
                                 &agg_gpu_power, "m_p", &agg_mem_power,
                                 "r_stime", &start_t, "r_etime", &end_t, "d_p",
@@ -162,7 +162,7 @@ void flux_pwr_monitor_get_node_power(flux_t *h, flux_msg_handler_t *mh,
 
     response_power_data **power_data_nodes;
     flux_log(h,LOG_CRIT,"Got request for data");
-    if (flux_request_unpack(msg, NULL, "{s:I,s:I,s:I,s:o}", "start_time",
+    if (flux_request_unpack(msg, NULL, "{s:I s:I s:I s:o}", "start_time",
                             &start_time, "end_time", &end_time, "flux_jobId",
                             &flux_job_id, "nodelist", &node_list) < 0) {
       flux_log_error(h, "error Unpacking get_node_power request from client");
@@ -205,7 +205,7 @@ void flux_pwr_monitor_get_node_power(flux_t *h, flux_msg_handler_t *mh,
     json_t *power_payload = json_array();
     for (int i = 0; i < num_nodes_data_present; i++) {
       json_t *data_obj = json_pack(
-          "{s:s,s:s,s:{s:f, s:f,s:f,s:f,s:I,s:I}}", "hostname",
+          "{s:s s:s s:{s:f s:f s:f s:f s:I s:I}}", "hostname",
           power_data_nodes[i]->hostname, "data_presence",
           get_data_presence_string(power_data_nodes[i]->data_presence),
           "node_power_data", "node_power", power_data_nodes[i]->agg_node_power,
@@ -224,7 +224,7 @@ void flux_pwr_monitor_get_node_power(flux_t *h, flux_msg_handler_t *mh,
     availabe or not}, node_power_data:{node_power:{Node power reported by
     variorum},cpu_power:{CPU power reported by variorum}}}}]
     **/
-    if (flux_respond_pack(h, msg, "{s:I,s:I,s:I,s:O}", "start_time", start_time,
+    if (flux_respond_pack(h, msg, "{s:I s:I s:I s:O}", "start_time", start_time,
                           "end_time", end_time, "flux_jobId", flux_job_id,
                           "data", power_payload) < 0) {
       flux_log_error(h, "error sending output RPC to client");
@@ -254,7 +254,7 @@ void flux_pwr_monitor_request_power_data_from_node(flux_t *h,
   size_t index;
   size_t num_nodes_data_present = 0;
 
-  if (flux_request_unpack(msg, NULL, "{s:I,s:I,s:s}", "start_time", &start_time,
+  if (flux_request_unpack(msg, NULL, "{s:I s:I s:s}", "start_time", &start_time,
                           "end_time", &end_time, "node_hostname",
                           &node_name_from_remote) < 0) {
     flux_log_error(
@@ -281,7 +281,7 @@ void flux_pwr_monitor_request_power_data_from_node(flux_t *h,
     return;
   }
   if (flux_respond_pack(
-          h, msg, "{s:f,s:f,s:f,s:f,s:I,s:I,s:i}", "n_p",
+          h, msg, "{s:f s:f s:f s:f s:I s:I s:i}", "n_p",
           power_data->agg_node_power, "c_p", power_data->agg_cpu_power, "g_p",
           power_data->agg_gpu_power, "m_p", power_data->agg_mem_power,
           "r_stime", power_data->start_time, "r_etime", power_data->end_time,
@@ -301,7 +301,7 @@ void flux_pwr_monitor_get_hostname(flux_t *h, flux_msg_handler_t *mh,
                                    const flux_msg_t *msg, void *arg) {
   const char *hostname;
   uint32_t sender;
-  if (flux_request_unpack(msg, NULL, "{s:I,s:s}", "rank", &sender, "hostname",
+  if (flux_request_unpack(msg, NULL, "{s:I s:s}", "rank", &sender, "hostname",
                           &hostname) < 0)
     goto error;
   if (rank > 0) {
@@ -310,7 +310,7 @@ void flux_pwr_monitor_get_hostname(flux_t *h, flux_msg_handler_t *mh,
                       "flux_pwr_monitor.get_hostname", // char *topic
                       FLUX_NODEID_UPSTREAM, // uint32_t nodeid (FLUX_NODEID_ANY,
                       FLUX_RPC_NORESPONSE,  // int flags (FLUX_RPC_NORESPONSE,,
-                      "{s:I,s:s}", "rank", sender, "hostname", hostname);
+                      "{s:I s:s}", "rank", sender, "hostname", hostname);
     if (f == NULL)
       goto error;
     flux_future_destroy(f);
@@ -392,7 +392,7 @@ int mod_main(flux_t *h, int argc, char **argv) {
                 "flux_pwr_monitor.get_hostname", // char *topic
                 FLUX_NODEID_UPSTREAM, // uint32_t nodeid (FLUX_NODEID_ANY,
                 FLUX_RPC_NORESPONSE,  // int flags (FLUX_RPC_NORESPONSE,,
-                "{s:I,s:s}", "rank", rank, "hostname", node_hostname);
+                "{s:I s:s}", "rank", rank, "hostname", node_hostname);
   flux_watcher_t *timer_watch_p = flux_timer_watcher_create(
       flux_get_reactor(h), 1.0, sampling_rate, timer_handler, h);
   assert(timer_watch_p);

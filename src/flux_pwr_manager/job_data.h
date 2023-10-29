@@ -1,9 +1,9 @@
 #ifndef FLUX_PWR_MANAGER_JOB_DATA_H
 #define FLUX_PWR_MANAGER_JOB_DATA_H
-#include "flux/core.h"
 #include "node_power_profile.h"
 #include "power_data.h"
 #include <unistd.h>
+#include <flux/core.h>
 #define HANDLE_ERROR(msg)                                                      \
   do {                                                                         \
     fprintf(stderr, "%s\n", msg);                                              \

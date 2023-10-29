@@ -10,5 +10,6 @@ libcommon_la_SOURCES=	\
 											response_power_data.c \
 											power_data.h \
 											power_data.c \
+											flux_pwr_logging.c \
 											util.h \
 											util.c

@@ -10,6 +10,7 @@ job_data *find_job(dynamic_job_map *job_map, uint64_t jobId);
 node_power_profile *find_node(job_data *data, char *hostname);
 int parse_node_capabilities(char *json_str, node_capabilities *result);
 
+int get_nodelist(char **hostname_list, int size, json_t *result) ;
 device_power_profile *find_device(node_power_profile *node, device_type type,
                                   int device_id);
 int parse_power_payload(json_t *payload, job_data *job, uint64_t timestamp);

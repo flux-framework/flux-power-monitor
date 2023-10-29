@@ -214,7 +214,7 @@ int parse_power_payload(json_t *payload, job_data *job, uint64_t timestamp) {
     double mem_power;
     uint64_t end_time, start_time;
     node_power_profile *n_data;
-    if (json_unpack(value, "{s:s, s:{s:F, s:F, s:F, s:F, s:I, s:I}}",
+    if (json_unpack(value, "{s:s s:{s:F s:F s:F s:F s:I s:I}}",
                     "hostname", &hostname, "node_power_data", "node_power",
                     &node_power, "cpu_power", &cpu_power, "gpu_power",
                     &gpu_power, "mem_power", &mem_power, "result_start_time",
@@ -336,7 +336,15 @@ job_map_entry *find_job_entry(job_map_entry *job_map, const uint64_t jobId,
   }
   return NULL;
 }
+int get_nodelist(char **hostname_list, int size, json_t *result) {
+  json_t* data=json_object_get(result,"nodelist");
 
+  if (!json_is_string(data))
+    return -1;
+  const char *str = json_string_value(data);
+  getNodeList((char *)str, &hostname_list, &size);
+  return 0;
+}
 int handle_new_job(json_t *value, dynamic_job_map *job_map, flux_t *h) {
   char **node_hostname_list = NULL;
   int size = 0;

@@ -63,7 +63,11 @@ AX_FLUX_CORE
 fluxpwr_ldflags=" -avoid-version -export-symbols-regex '^mod_(main|name|service)\$\$' --disable-static -shared -export-dynamic"
 AC_SUBST(fluxpwr_ldflags)
 
-
+AC_CHECK_LIB([pthread], [pthread_create], 
+             [], 
+             [AC_MSG_ERROR([Could not find required pthread library])])
+AX_PTHREAD([],
+           [AC_MSG_ERROR([Could not find pthreads support])])
 # Checks for header files.
 AC_CHECK_HEADERS([stdint.h unistd.h])
 
@@ -83,6 +87,7 @@ AC_CONFIG_FILES(\
                 Makefile \
                 src/flux_pwr_monitor/Makefile \
                 src/flux_pwr_manager/Makefile \
+                src/flux_pwr_manager/node_manager/Makefile\
                 src/flux_pwr_manager/power_policies/Makefile \
                 src/common/Makefile 
               )
