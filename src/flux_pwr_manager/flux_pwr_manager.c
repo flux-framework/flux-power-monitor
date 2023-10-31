@@ -32,18 +32,19 @@
 #define SAMPLING_RATE 100
 #define BUFFER_SIZE 120
 int num_of_job = 0;
+flux_t *flux_handler = NULL;
 uint64_t current_job_id[100];
 #define MY_MOD_NAME "flux_pwr_manager"
 const char default_service_name[] = MY_MOD_NAME;
-static double global_power_budget;
-static uint64_t max_global_powerlimit;
-static uint64_t min_global_powerlimit;
-static power_strategy *current_power_strategy;
-static char node_hostname[HOSTNAME_SIZE];
-static char **hostname_list;
-static dynamic_job_map *job_map_data;
-static uint32_t rank, size;
-static node_capabilities current_node_capabilities = {0};
+double global_power_budget;
+uint64_t max_global_powerlimit;
+uint64_t min_global_powerlimit;
+power_strategy *current_power_strategy;
+char node_hostname[HOSTNAME_SIZE];
+char **hostname_list;
+dynamic_job_map *job_map_data;
+uint32_t rank, size;
+node_capabilities current_node_capabilities = {0};
 
 // static const int NOFLAGS=0;
 /*
@@ -358,7 +359,7 @@ int send_powercap_rpc(flux_t *h, int rank, char *hostname) {
                     "get_node_power");
         return -1;
       }
-        json_decref(powercap_payload);
+      json_decref(powercap_payload);
     }
   }
   return 0;
@@ -869,23 +870,46 @@ err:
   if (flux_respond_error(h, msg, errno, errmsg) < 0)
     log_error("%s: flux_respond_error", __FUNCTION__);
 }
+int handle_node_job_notification(char *topic, uint64_t jobId) {
+  static int i=0;
+  log_message("Test i%d",i);
+  i++;
+  if (topic == NULL)
+    return -1;
+  log_message("Handle_node_job_notiication %s, jobId %d and rank,%d", topic,
+              jobId, rank);
+  if (strcmp(topic, "job.state.run") == 0) {
+    if (node_manager_new_job(jobId) < 0)
+      return -1;
+  } else if (strcmp(topic, "job.inactive-add") == 0) {
+    if (node_manager_finish_job(jobId) < 0)
+      return -1;
+  }
 
+  return 0;
+}
+int send_node_notify_rpc(char *topic, uint64_t jobId, char *hostname) {
+  int local_rank = 0;
+  static int i=0;
+  if (hostname == NULL)
+    return -1;
+  if (topic == NULL)
+    return -1;
+  local_rank = find_rank_hostname(hostname);
+  if (flux_rpc_pack(flux_handler, "flux_pwr_manager.jobtap_node_notify",
+                    local_rank, 0, "{s:s s:I}", "topic", topic, "id",
+                    jobId) < 0) {
+    log_error("RPC_ERROR:Error in sending notification to node");
+    return -1;
+  }
+  return 0;
+}
 void handle_jobtap_nodelist_rpc(flux_future_t *f, void *args) {
   char **job_hostname_list = NULL;
   int size = 0;
   char *topic = (char *)args;
   char *node_string;
   uint64_t id;
-  // const void *data;
-  // int len;
-
-  // Get the raw data from the future
-  // if (flux_rpc_get_raw(f, &data, &len) < 0) {
-  //   log_error("RPC_INFO: Unable to get raw data from future");
-  //   return;
-  // }
-
-  // log_message("RPC_INFO: Raw data: %.*s", len, (const char *)data);
 
   if (flux_rpc_get_unpack(f, "{s:{s:I s:s}}", "job", "id", &id, "nodelist",
                           &node_string) < 0) {
@@ -894,49 +918,57 @@ void handle_jobtap_nodelist_rpc(flux_future_t *f, void *args) {
     flux_future_destroy(f);
     return;
   }
-  log_message("nodelist %s", node_string);
-
   int ret = getNodeList((char *)node_string, &job_hostname_list, &size);
   log_message("ret is %d and size is %d ", ret, size);
   if (ret < 0) {
     log_message("Unable to get nodelist");
-    flux_future_destroy(f);
-    return;
+    goto error;
   }
   for (int i = 0; i < size; i++)
-    log_message("RPC: hostname list %s topic %s", job_hostname_list[i]);
+    log_message("Node name %s", job_hostname_list[i]);
+  for (int i = 0; i < size; i++)
+    send_node_notify_rpc(topic, id, job_hostname_list[i]);
+error:
+  for (int i = 0; i < size; i++) {
+    free(job_hostname_list[i]);
+  }
+  free(job_hostname_list);
   flux_future_destroy(f);
+  free(topic);
 }
 
 void flux_pwr_manager_job_notification_rpc_cb(flux_t *h, flux_msg_handler_t *mh,
                                               const flux_msg_t *msg,
                                               void *args) {
   flux_future_t *f;
+  char *topic_ref;
   char *topic;
   uint64_t id;
   int userId;
   double t_submit;
   uint32_t state = FLUX_JOB_STATE_ACTIVE | FLUX_JOB_STATE_INACTIVE;
 
-  if (flux_request_unpack(msg, NULL, "{s:s s:I s:f s:i}", "topic", &topic, "id",
-                          &id, "t_submit", &t_submit, "userId", &userId) < 0) {
+  if (flux_request_unpack(msg, NULL, "{s:s s:I s:f s:i}", "topic", &topic_ref,
+                          "id", &id, "t_submit", &t_submit, "userId",
+                          &userId) < 0) {
     log_error("Job Tap Giving error");
     return;
   }
-
+  topic = strdup(topic_ref);
   log_message("RPC_INFO: TOPIC %s Job Info %ld with time submit %f", topic, id,
               t_submit);
 
   json_t *attrs_array = json_array();
   if (!attrs_array) {
+    free(topic);
     log_error("JSON_ERROR:Unable to create attrs array for nodelist");
-    return;
+    goto error;
   }
 
   if (json_array_append_new(attrs_array, json_string("nodelist")) == -1) {
     log_error("JSON_ERROR:Unable to append to attrs array");
-    json_decref(attrs_array);
-    return;
+    free(topic);
+    goto error;
   }
   struct timespec req, rem;
 
@@ -954,19 +986,34 @@ void flux_pwr_manager_job_notification_rpc_cb(flux_t *h, flux_msg_handler_t *mh,
                     "id", id, "attrs", "nodelist");
   if (!f) {
     log_error("RPC_ERROR:Unable to send RPC to get job info in jobtap %d");
-    return;
+    free(topic);
+    goto error;
   }
-
   if (flux_future_then(f, -1., handle_jobtap_nodelist_rpc, topic) < 0) {
     log_message(
         "RPC_INFO:Error in setting flux_future_then for RPC get_node_power");
     flux_future_destroy(f); // Clean up the future object
-    return;
+    goto error;
   }
+error:
+  if (attrs_array != NULL)
+    json_decref(attrs_array);
 }
 
 void flux_pwr_manager_notify_node(flux_t *h, flux_msg_handler_t *mh,
-                                  const flux_msg_t *msg, void *args) {}
+                                  const flux_msg_t *msg, void *args) {
+  uint64_t jobId;
+  char *topic_ref;
+  char *topic;
+  if (flux_request_unpack(msg, NULL, "{s:s s:I}", "topic", &topic_ref, "id",
+                          &jobId) < 0)
+    log_message("RPC_ERROR: unapck error notify node");
+  topic = strdup(topic_ref);
+  log_message("My rank %d", rank);
+  if (handle_node_job_notification(topic, jobId) < 0)
+    log_message("Error in setting node_manager job notification");
+  free(topic);
+}
 
 void flux_pwr_manager_jobtap_destructor_cb(flux_t *h, flux_msg_handler_t *mh,
                                            const flux_msg_t *msg, void *args) {
@@ -995,15 +1042,18 @@ static const struct flux_msg_handler_spec htab[] = {
      flux_pwr_manager_job_notification_rpc_cb, 0},
     {FLUX_MSGTYPE_REQUEST, "flux_pwr_manager.jobtap_destructor_notify",
      flux_pwr_manager_jobtap_destructor_cb, 0},
+    {FLUX_MSGTYPE_REQUEST, "flux_pwr_manager.jobtap_node_notify",
+     flux_pwr_manager_notify_node, 0},
     FLUX_MSGHANDLER_TABLE_END,
 };
 
 int mod_main(flux_t *h, int argc, char **argv) {
-
+  int rc = 0;
   flux_get_rank(h, &rank);
   flux_get_size(h, &size);
 
   init_flux_pwr_logging(h);
+  flux_handler = h;
   if (size == 0)
     return -1;
   // log_message( "QQQ %s:%d Hello from rank %d of %d.\n", __FILE__,
@@ -1011,18 +1061,20 @@ int mod_main(flux_t *h, int argc, char **argv) {
   if (rank == 0) {
     current_power_strategy = malloc(sizeof(power_strategy));
     if (current_power_strategy == NULL) {
+
       printf("Error In allocating current power strategy");
-      return -1;
+      rc = -1;
+      goto done;
     }
 
     dynamic_power_policy_init(current_power_strategy);
   }
-  node_manager_init(h, rank, size, node_hostname, SAMPLING_RATE * BUFFER_SIZE,
-                    SAMPLING_RATE);
   max_global_powerlimit = size * MAX_NODE_POWER;
   min_global_powerlimit = size * MIN_NODE_POWER;
-  if (max_global_powerlimit == 0 || min_global_powerlimit == 0)
-    return -1;
+  if (max_global_powerlimit == 0 || min_global_powerlimit == 0) {
+    rc = -1;
+    goto done;
+  }
   global_power_budget = max_global_powerlimit;
   gethostname(node_hostname, HOSTNAME_SIZE);
   if (rank == 0) {
@@ -1030,7 +1082,8 @@ int mod_main(flux_t *h, int argc, char **argv) {
       hostname_list = malloc(sizeof(char *) * size);
       if (hostname_list == NULL) {
         log_error("Unable to allocate memory for hostname_list");
-        return -1;
+        rc = -1;
+        goto done;
       }
     }
     for (int i = 1; i < size; i++)
@@ -1052,23 +1105,43 @@ int mod_main(flux_t *h, int argc, char **argv) {
     job_map_data = init_job_map(JOB_MAP_SIZE);
   }
   flux_msg_handler_t **handlers = NULL;
-  if (!h)
-    fprintf(stderr, "flux handle is null ?");
   // Let all ranks set this up.
-  assert(flux_msg_handler_addvec(h, htab, NULL, &handlers) >= 0);
-  flux_rpc_pack(h,                               // flux_t *h
-                "flux_pwr_manager.get_hostname", // char *topic
-                0,                   // uint32_t nodeid (FLUX_NODEID_ANY,
-                FLUX_RPC_NORESPONSE, // int flags (FLUX_RPC_NORESPONSE,,
-                "{s:I s:s}", "rank", rank, "hostname", node_hostname);
+  if (flux_msg_handler_addvec(h, htab, NULL, &handlers) < 0) {
+    log_error("Flux msg_handler addvec error");
+    rc = -1;
+    goto done;
+  }
+  if (flux_rpc_pack(h,                               // flux_t *h
+                    "flux_pwr_manager.get_hostname", // char *topic
+                    0,                   // uint32_t nodeid (FLUX_NODEID_ANY,
+                    FLUX_RPC_NORESPONSE, // int flags (FLUX_RPC_NORESPONSE,,
+                    "{s:I s:s}", "rank", rank, "hostname", node_hostname) < 0) {
+    log_error("RPC_ERROR:Unable to get hostname");
+    rc = -1;
+    goto done;
+  }
   // All ranks set a handler for the timer.
   flux_watcher_t *timer_watch_p = flux_timer_watcher_create(
       flux_get_reactor(h), 10.0, 5.0, timer_handler, h);
-  assert(timer_watch_p);
+  if (timer_watch_p == NULL) {
+    rc = -1;
+    goto done;
+  }
   flux_watcher_start(timer_watch_p);
+  log_message("POST execution 0");
+  node_manager_init(h, rank, size, node_hostname, SAMPLING_RATE * BUFFER_SIZE,
+                    SAMPLING_RATE);
+  log_message("POST execution 1");
 
   // Run!
-  assert(flux_reactor_run(flux_get_reactor(h), 0) >= 0);
+  if (flux_reactor_run(flux_get_reactor(h), 0) < 0) {
+    log_error("FLUX_REACTOR_RUN");
+    rc = -1;
+    log_message("We are done");
+    goto done;
+  }
+  log_message("POST execution 2");
+done:
   // On unload, shutdown the handlers.
   if (rank == 0) {
     flux_msg_handler_delvec(handlers);
@@ -1078,11 +1151,11 @@ int mod_main(flux_t *h, int argc, char **argv) {
       if (hostname_list[i] != NULL)
         free(hostname_list[i]);
     }
+    printf("Freeing the hostname_list");
     free(hostname_list);
     // free(current_power_strategy);
   }
   node_manager_destructor();
-
-  return 0;
+  return rc;
 }
 MOD_NAME(MY_MOD_NAME);

@@ -5,6 +5,8 @@ void flux_pwr_monitor_request_power_data_from_node(flux_t *h,
                                                    flux_msg_handler_t *mh,
                                                    const flux_msg_t *msg,
                                                    void *arg);
-void start_job(uint64_t jobId);
-void end_job();
+void power_monitor_init();
+void power_monitor_destructor();
+void power_monitor_start_job(uint64_t jobId);
+void power_monitor_end_job();
 #endif

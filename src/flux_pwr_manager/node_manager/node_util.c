@@ -88,14 +88,15 @@ node_power *parse_string(const char *input_str) {
 
 // Function to allocate the global temporary buffer based on the circular
 // buffer's size
-void allocate_global_buffer(char *buffer, size_t *buffer_size,
+int allocate_global_buffer(char *buffer, size_t *buffer_size,
                             size_t circular_buffer_size) {
   *buffer_size = circular_buffer_size * MAX_CSV_SIZE;
   buffer = malloc(*buffer_size);
   if (!buffer) {
     perror("Failed to allocate global buffer");
     *buffer_size = 0;
-    return;
+    return -1;
   }
   memset(buffer, 0, *buffer_size);
+  return 0;
 }

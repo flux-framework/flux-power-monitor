@@ -1,5 +1,5 @@
 AM_CFLAGS = -fPIC @PTHREAD_CFLAGS@
-AM_CPPFLAGS = -I$(top_srcdir)/src/common -I$(top_srcdir)/src/flux_pwr_manager
+AM_CPPFLAGS = -I$(top_srcdir)/src/common -I$(top_srcdir)/src/flux_pwr_manager $(FFTW_LIBS)
 
 noinst_LTLIBRARIES = libnode_manager.la
 
@@ -17,5 +17,7 @@ libnode_manager_la_CPPFLAGS = \
 libnode_manager_la_LIBADD = \
     $(FLUX_CORE_LIBS) \
     $(VARIORUM_LIB) \
-    @PTHREAD_LIBS@
+    @PTHREAD_LIBS@ \
+		$(FFTW_LIBS)
+
 
