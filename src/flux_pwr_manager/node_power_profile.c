@@ -24,9 +24,9 @@ node_power_profile *node_power_profile_new(char *hostname,
   if (node->hostname == NULL)
     HANDLE_ERROR("Failed to allocate memory for hostname.");
   node->history_size = node_history_size;
-  node->power_history = circular_buffer_new(node->history_size, free);
+  node->power_history = retro_queue_buffer_new(node->history_size, free);
   if (node->power_history == NULL)
-    HANDLE_ERROR("Failed to create circular_buffer for node_power_history");
+    HANDLE_ERROR("Failed to create retro_queue_buffer for node_power_history");
   node->powercap_allowed = false;
   node->max_power = 0;
   node->min_power = 0;
@@ -46,7 +46,7 @@ void node_power_profile_destroy(node_power_profile *node) {
   if (node->hostname != NULL)
     free(node->hostname);
   if (node->power_history != NULL)
-    circular_buffer_destroy(node->power_history);
+    retro_queue_buffer_destroy(node->power_history);
   if (node->device_list != NULL) {
     for (int i = 0; i < node->total_num_of_devices; i++) {
       if (node->device_list[i] != NULL)
@@ -185,7 +185,7 @@ int node_power_update(node_power_profile *node, power_data *data) {
       "data we are getting for node from power monitor type %d power %f",
       data->type, data->power_value);
   // First finding the average and then only add the item to buffer as we want
-  // to keep a running average of all the items in the circular_buffer
+  // to keep a running average of all the items in the retro_queue_buffer
   double node_power_agg =
       do_agg(node->power_history, data->power_value, node->power_agg);
   if (node_power_agg != -1.0)

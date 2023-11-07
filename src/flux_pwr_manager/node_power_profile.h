@@ -1,6 +1,6 @@
 #ifndef FLUX_PWR_MANAGER_NODE_POWER_PROFILE_H
 #define FLUX_PWR_MANAGER_NODE_POWER_PROFILE_H
-#include "circular_buffer.h"
+#include "retro_queue_buffer.h"
 #include "device_power_info.h"
 #include "node_capabilities.h"
 #include "power_data.h"
@@ -24,7 +24,7 @@ typedef struct {
   double powerlimit;
   POWER_POLICY_TYPE device_power_policy; // This is the power policy this node
   device_power_profile **device_list;
-  circular_buffer_t *power_history;
+  retro_queue_buffer_t *power_history;
 } node_power_profile;
 
 node_power_profile *node_power_profile_new(char *hostname,

@@ -24,7 +24,7 @@ typedef struct {
   double min_power;
   POWER_POLICY_TYPE current_power_policy;
   uint64_t latest_entry_time_stamp;
-  circular_buffer_t *power_history;
+  retro_queue_buffer_t *power_history;
   node_power_profile **node_power_profile_data;
 
 } job_data;

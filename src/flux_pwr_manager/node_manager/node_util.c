@@ -3,6 +3,7 @@
 #endif
 #include "jansson.h"
 #include "node_util.h"
+#include <stdbool.h>
 node_power *parse_string(const char *input_str) {
   node_power *np = malloc(sizeof(node_power));
   if (!np) {
@@ -55,8 +56,10 @@ node_power *parse_string(const char *input_str) {
 
   double gpu_power_value = 0.0;
   value = json_object_get(root, "power_gpu_watts_socket_0");
-  if (json_is_real(value))
+  if (json_is_real(value)){
     gpu_power_value = json_real_value(value);
+    np->gpu_power[0]=gpu_power_value;
+  }
 
   value = json_object_get(root, "power_mem_watts_socket_1");
   if (json_is_real(value))
@@ -74,11 +77,12 @@ node_power *parse_string(const char *input_str) {
   struct timeval tv;
   uint64_t timestamp;
   gettimeofday(&tv, NULL);
-  timestamp = tv.tv_sec * (uint64_t)1000000 + tv.tv_usec;
+  timestamp = (tv.tv_sec * (uint64_t)1000) + (tv.tv_usec / 1000);
+  np->timestamp = timestamp;
   snprintf(np->csv_string, MAX_CSV_SIZE - 1,
            "%ld,%lf,%lf,%lf,%lf,%lf,%lf,%lf\n", timestamp, np->node_power,
-           np->cpu_power[0], np->mem_power[0], np->gpu_power[0],
-           np->cpu_power[1], np->mem_power[1], np->gpu_power[1]);
+           np->cpu_power[0], np->gpu_power[0], np->mem_power[0],
+           np->cpu_power[1], np->gpu_power[1], np->mem_power[1]);
 
   // Clean up
   json_decref(root);
@@ -88,15 +92,30 @@ node_power *parse_string(const char *input_str) {
 
 // Function to allocate the global temporary buffer based on the circular
 // buffer's size
-int allocate_global_buffer(char *buffer, size_t *buffer_size,
-                            size_t circular_buffer_size) {
-  *buffer_size = circular_buffer_size * MAX_CSV_SIZE;
-  buffer = malloc(*buffer_size);
-  if (!buffer) {
+int allocate_global_buffer(char **buffer, size_t buffer_size) {
+  *buffer = malloc(MAX_CSV_SIZE * buffer_size);
+  if (!*buffer) {
     perror("Failed to allocate global buffer");
-    *buffer_size = 0;
     return -1;
   }
-  memset(buffer, 0, *buffer_size);
+
+  // Initialize the allocated memory to zero.
+  memset(*buffer, 0, MAX_CSV_SIZE * buffer_size);
+
   return 0;
+}
+
+int node_power_cmp(void *element, void *target) {
+  node_power *element_power = (node_power *)element;
+  node_power *target_power = (node_power *)target;
+  if (target_power->timestamp == element_power->timestamp)
+    return true;
+  return false;
+}
+void sanitize_path(char *path) {
+  size_t len = strlen(path);
+  if (len > 1 &&
+      path[len - 1] == '/') { // Check if len > 1 to preserve root "/"
+    path[len - 1] = '\0'; // Replace the last character with a null terminator
+  }
 }

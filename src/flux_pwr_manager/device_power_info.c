@@ -13,7 +13,7 @@ device_power_profile *device_power_profile_new(device_type type,
   device_data->type = type;
   device_data->device_id = device_id;
   device_data->powercap_allowed = true;
-  device_data->power_history = circular_buffer_new(buffer_size, free);
+  device_data->power_history = retro_queue_buffer_new(buffer_size, free);
   if (device_data->power_history == NULL) {
     free(device_data);
     return NULL; // Return NULL after freeing device_data
@@ -25,7 +25,7 @@ void device_power_profile_destroy(device_power_profile *device_data) {
   if (device_data == NULL)
     return;
   if (device_data->power_history != NULL)
-    circular_buffer_destroy(device_data->power_history);
+    retro_queue_buffer_destroy(device_data->power_history);
 }
 int device_power_profile_add_power_data_to_device_history(
     device_power_profile *device_data, power_data *data) {

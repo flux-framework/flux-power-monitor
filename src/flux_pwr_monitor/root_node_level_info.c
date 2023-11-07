@@ -18,7 +18,7 @@ root_node_level_info *root_node_data_new(int sender,
     free(root_all_node_data);
     return NULL;
   }
-  root_all_node_data->power_data = circular_buffer_new(buffer_size, func);
+  root_all_node_data->power_data = retro_queue_buffer_new(buffer_size, func);
   if (root_all_node_data->power_data == NULL) {
     free(root_all_node_data->hostname);
     free(root_all_node_data);
@@ -30,6 +30,6 @@ void root_node_level_info_destroy(root_node_level_info *data) {
   if (data == NULL)
     return;
   free(data->hostname);
-  circular_buffer_destroy(data->power_data);
+  retro_queue_buffer_destroy(data->power_data);
   free(data);
 }

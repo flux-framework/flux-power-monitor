@@ -7,7 +7,8 @@ libnode_manager_la_SOURCES = \
     node_data.h \
     node_manager.c \
 		node_util.c \
-    power_monitor.c
+    power_monitor.c\
+		fft_predictor.c
 
 libnode_manager_la_CPPFLAGS = \
     $(AM_CPPFLAGS) \

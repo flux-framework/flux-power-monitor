@@ -2,25 +2,25 @@
 #include <stdlib.h>
 #include <time.h>
 #include <fftw3.h>
-#include "circular_buffer.h"
+#include "retro_queue_buffer.h"
 
 #define NUM_ELEMENTS 100000
 
 int main() {
     // Create a circular buffer with a max size of 100,000
-    circular_buffer_t *buffer = circular_buffer_new(NUM_ELEMENTS, fftw_free);
+    retro_queue_buffer_t *buffer = retro_queue_buffer_new(NUM_ELEMENTS, fftw_free);
 
     // Populate the buffer with 100,000 double values
     for (size_t i = 0; i < NUM_ELEMENTS; i++) {
         double *value = (double *)fftw_malloc(sizeof(double));
         *value = (double)i;
-        circular_buffer_push(buffer, value);
+        retro_queue_buffer_push(buffer, value);
     }
 
     // Check if buffer size matches expectation
-    if (circular_buffer_get_current_size(buffer) != NUM_ELEMENTS) {
+    if (retro_queue_buffer_get_current_size(buffer) != NUM_ELEMENTS) {
         fprintf(stderr, "Error: Buffer size doesn't match expected number of elements.\n");
-        circular_buffer_destroy(buffer);
+        retro_queue_buffer_destroy(buffer);
         return 1; // exit with an error code
     }
 
@@ -49,7 +49,7 @@ int main() {
     printf("Time taken to extract and copy 100,000 elements: %f seconds\n", cpu_time_used);
 
     fftw_free(extracted_data);
-    circular_buffer_destroy(buffer);
+    retro_queue_buffer_destroy(buffer);
     return 0;
 }
 

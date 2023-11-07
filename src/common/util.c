@@ -1,4 +1,4 @@
-#include "circular_buffer.h"
+#include "retro_queue_buffer.h"
 #include "response_power_data.h"
 #if HAVE_CONFIG_H
 #include "config.h"
@@ -6,14 +6,14 @@
 #include "util.h"
 #include <assert.h>
 #include <jansson.h>
-double do_agg(circular_buffer_t *buffer, double current_power_value,
+double do_agg(retro_queue_buffer_t *buffer, double current_power_value,
               double old_power_value) {
   if (buffer == NULL)
     return -1.0;
-  if (circular_buffer_get_current_size(buffer) == 0)
+  if (retro_queue_buffer_get_current_size(buffer) == 0)
     return current_power_value;
-  if (circular_buffer_get_max_size(buffer) ==
-      circular_buffer_get_current_size(buffer)) {
+  if (retro_queue_buffer_get_max_size(buffer) ==
+      retro_queue_buffer_get_current_size(buffer)) {
     old_power_value -= *(double *)zlist_first(buffer->list);
   }
   double *p_data = malloc(sizeof(double));
@@ -21,8 +21,8 @@ double do_agg(circular_buffer_t *buffer, double current_power_value,
     return -1;
   *p_data = current_power_value;
   old_power_value += current_power_value;
-  circular_buffer_push(buffer, (void *)p_data);
-  old_power_value /= circular_buffer_get_current_size(buffer);
+  retro_queue_buffer_push(buffer, (void *)p_data);
+  old_power_value /= retro_queue_buffer_get_current_size(buffer);
   return old_power_value;
 }
 
@@ -60,7 +60,7 @@ int parse_json(char *s, response_power_data *data) {
   json_decref(power_obj);
   return 0;
 }
-response_power_data *get_agg_power_data(circular_buffer_t *buffer,
+response_power_data *get_agg_power_data(retro_queue_buffer_t *buffer,
                                         const char *hostname,
                                         uint64_t start_time,
                                         uint64_t end_time) {

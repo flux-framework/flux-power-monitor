@@ -1,6 +1,6 @@
 #ifndef FLUX_PWR_MANAGER_NODE_DATA_H
 #define FLUX_PWR_MANAGER_NODE_DATA_H
-#include "circular_buffer.h"
+#include "retro_queue_buffer.h"
 #include "power_policies/power_policy.h"
 #define MAX_CSV_SIZE 512
 typedef struct {
@@ -10,9 +10,10 @@ typedef struct {
   double mem_power[2];
   char csv_string[MAX_CSV_SIZE];
   int num_of_gpu;
+  uint64_t timestamp;
 } node_power;
 typedef struct {
-  circular_buffer_t *node_power_time; // Stores the power data of the node in
+  retro_queue_buffer_t *node_power_time; // Stores the power data of the node in
                                       // the form of node_power
   char *hostname;                     // hostname
   double power_limit;

@@ -2,7 +2,7 @@
 #if HAVE_CONFIG_H
 #include "config.h"
 #endif
-#include "circular_buffer.h"
+#include "retro_queue_buffer.h"
 #include "node_power_info.h"
 #include "response_power_data.h"
 #include "root_node_level_info.h"
@@ -16,7 +16,7 @@
 #include <sys/time.h>
 #include <unistd.h>
 #define HOSTNAME_SIZE 256
-static circular_buffer_t *per_node_circular_buffer = NULL;
+static retro_queue_buffer_t *per_node_retro_queue_buffer = NULL;
 static uint32_t sample_id = 0;
 static uint32_t rank, size;
 static uint32_t sampling_rate, buffer_size;
@@ -62,18 +62,18 @@ static void timer_handler(flux_reactor_t *r, flux_watcher_t *w, int revents,
       return;
     }
 
-    if (per_node_circular_buffer == NULL) {
-      per_node_circular_buffer =
-          circular_buffer_new(buffer_size, &node_power_info_destroy);
+    if (per_node_retro_queue_buffer == NULL) {
+      per_node_retro_queue_buffer =
+          retro_queue_buffer_new(buffer_size, &node_power_info_destroy);
 
-      if (per_node_circular_buffer == NULL) {
+      if (per_node_retro_queue_buffer == NULL) {
         flux_log_error(h, "%s: Error in Creating Root Node Power Data",
                        __FUNCTION__);
         return;
       }
     }
 
-    circular_buffer_push(per_node_circular_buffer, (void *)power_data);
+    retro_queue_buffer_push(per_node_retro_queue_buffer, (void *)power_data);
   }
   free(s);
 }
@@ -120,7 +120,7 @@ response_power_data *get_response_power_data(flux_t *h, const char *hostname,
         power_data->agg_mem_power = agg_mem_power;
         return power_data;
       } else if (i == 0) {
-        power_data = get_agg_power_data(per_node_circular_buffer, node_hostname,
+        power_data = get_agg_power_data(per_node_retro_queue_buffer, node_hostname,
                                         start_time, end_time);
         if (power_data == NULL) {
           flux_log_error(h, "error responding to "
@@ -267,7 +267,7 @@ void flux_pwr_monitor_request_power_data_from_node(flux_t *h,
     return;
   }
   response_power_data *power_data = get_agg_power_data(
-      per_node_circular_buffer, node_hostname, start_time, end_time);
+      per_node_retro_queue_buffer, node_hostname, start_time, end_time);
   if (power_data == NULL) {
     flux_log_error(h, "Unable to get agg data from node for "
                       "flux_pwr_montior.request_power_data_from_node request");

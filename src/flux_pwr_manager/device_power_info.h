@@ -1,6 +1,6 @@
 #ifndef FLUX_PWR_MANAGER_POWER_INFO_H
 #define FLUX_PWR_MANAGER_POWER_INFO_H
-#include "circular_buffer.h"
+#include "retro_queue_buffer.h"
 #include "device_type.h"
 #include "power_data.h"
 #include "power_policies/power_policy.h"
@@ -15,7 +15,7 @@ typedef struct {
   double powerlimit;
   bool powercap_allowed;
   POWER_POLICY_TYPE device_power_policy;
-  circular_buffer_t *power_history;
+  retro_queue_buffer_t *power_history;
 } device_power_profile;
 
 device_power_profile *device_power_profile_new(device_type type,

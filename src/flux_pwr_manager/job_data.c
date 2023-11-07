@@ -1,7 +1,7 @@
 #if HAVE_CONFIG_H
 #include "config.h"
 #endif
-#include "circular_buffer.h"
+#include "retro_queue_buffer.h"
 #include "job_data.h"
 #include "util.h"
 #include <stdio.h>
@@ -36,7 +36,7 @@ job_data *job_data_new(uint64_t jobId, char **node_hostname_list, int node_size,
 
   newJob->jobId = jobId;
   newJob->t_depend = t_depend;
-  newJob->power_history = circular_buffer_new(POWER_HISTORY_SIZE, free);
+  newJob->power_history = retro_queue_buffer_new(POWER_HISTORY_SIZE, free);
   if (newJob->power_history == NULL) {
     fprintf(stderr, "Failed to allocate memory for job_power_history.\n");
     free(newJob);
@@ -46,7 +46,7 @@ job_data *job_data_new(uint64_t jobId, char **node_hostname_list, int node_size,
   newJob->node_hostname_list = (char **)malloc(node_size * sizeof(char *));
   if (newJob->node_hostname_list == NULL) {
     fprintf(stderr, "Failed to allocate memory for node_hostname_list.\n");
-    circular_buffer_destroy(newJob->power_history);
+    retro_queue_buffer_destroy(newJob->power_history);
     free(newJob);
     return NULL;
   }
@@ -57,7 +57,7 @@ job_data *job_data_new(uint64_t jobId, char **node_hostname_list, int node_size,
       for (int j = 0; j < i; j++)
         free(newJob->node_hostname_list[j]);
       free(newJob->node_hostname_list);
-      circular_buffer_destroy(newJob->power_history);
+      retro_queue_buffer_destroy(newJob->power_history);
       free(newJob);
       return NULL;
     }
@@ -91,7 +91,7 @@ void job_data_destroy(job_data *job) {
     job->node_power_profile_data = NULL;
   }
 
-  circular_buffer_destroy(job->power_history);
+  retro_queue_buffer_destroy(job->power_history);
   job->power_history = NULL;
 
   free(job);

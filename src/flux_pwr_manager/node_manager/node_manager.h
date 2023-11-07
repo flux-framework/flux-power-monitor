@@ -9,6 +9,7 @@
 //                               const flux_msg_t *msg, void *arg);
 int node_manager_destructor();
 int  node_manager_init(flux_t* h,uint32_t rank,uint32_t size,char* hostname,size_t buffer_size,size_t sampling_rate);
-int node_manager_new_job(uint64_t jobId);
+int node_manager_new_job(uint64_t jobId,char *job_cwd,char *job_name);
 int node_manager_finish_job(uint64_t jobId);
+int node_manager_set_powerlimit(double powerlimit);
 #endif

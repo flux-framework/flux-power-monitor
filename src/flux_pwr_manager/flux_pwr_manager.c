@@ -1,6 +1,7 @@
 #if HAVE_CONFIG_H
 #include "config.h"
 #endif
+#include "constants.h"
 #include "device_power_info.h"
 #include "dynamic_job_map.h"
 #include "flux_pwr_logging.h"
@@ -29,8 +30,8 @@
 #define HOSTNAME_SIZE 256
 #define MAX_NODE_POWER 3050
 #define MIN_NODE_POWER 500
-#define SAMPLING_RATE 100
-#define BUFFER_SIZE 120
+#define BUFFER_SIZE                                                            \
+  360 // Number of samples in seconds, total 6 mins collect data
 int num_of_job = 0;
 flux_t *flux_handler = NULL;
 uint64_t current_job_id[100];
@@ -529,8 +530,6 @@ void get_flux_jobs(flux_t *h) {
     return;
   }
   parse_jobs(h, jobs, job_map_data);
-  log_message("JOB_INFO:Number of jobs after parsing is %ld",
-              job_map_data->size);
 
   // json_decref(
   //     jobs); // Decrement reference count of jobs after it's no longer needed
@@ -547,8 +546,6 @@ void handle_get_node_power_capabilities_rpc(flux_future_t *f, void *args) {
     log_error("RPC_INFO:Unable to parse RPC data");
     return;
   }
-  log_message("RPC_HANDLE:Got a resposne for get node capab about node %s",
-              hostname);
 
   node_capabilities remote_capabilities = {0};
   size_t index;
@@ -669,43 +666,49 @@ static void timer_handler(flux_reactor_t *r, flux_watcher_t *w, int revents,
     int ret;
     char *s = malloc(1500);
 
-    double node_power;
-    double gpu_power;
-    double cpu_power;
-    double mem_power;
-    flux_t *h = (flux_t *)arg;
-    get_flux_jobs(h);
-    for (int i = 0; i < job_map_data->size; i++) {
-      int ret = add_node_capabiliity_to_job(h, job_map_data->entries[i].data);
-      if (ret != 0) {
-        log_message("Still Waiting for node Info");
-        return;
-      }
-    }
-    for (int i = 0; i < job_map_data->size; i++) {
-      get_job_power(h, job_map_data->entries[i].data);
-    }
-    if (job_map_data->size > 0)
-      initialized++;
-    if (initialized % 3 == 0) {
-      update_power_policy();
-      update_power_distribution_strategy();
-      set_powercap();
-
-      // Currently, the device capabilities are being retrieved during the first
-      // powercap RPC, which disrupts the overall structure of power capping. At
-      // present, a temporary workaround is being used to manage this issue
-      // since the existing code structure doesn't allow RPC calls to be made
-      // from other files. A refactor is planned for this section, which will
-      // centralize all RPC calls into a single file. This will enable calls to
-      // be made from any location, not just the main file, thereby improving
-      // the flexibility and maintainability of the code.
-      //
-
-      if (send_powercap_rpc(h, rank, node_hostname) < 0) {
-        log_error("ERROR Unable to set powercap");
-      }
-    }
+    //   double node_power;
+    //   double gpu_power;
+    //   double cpu_power;
+    //   double mem_power;
+    //   flux_t *h = (flux_t *)arg;
+    //   get_flux_jobs(h);
+    //   for (int i = 0; i < job_map_data->size; i++) {
+    //     int ret = add_node_capabiliity_to_job(h,
+    //     job_map_data->entries[i].data); if (ret != 0) {
+    //       log_message("Still Waiting for node Info");
+    //       return;
+    //     }
+    //   }
+    //   for (int i = 0; i < job_map_data->size; i++) {
+    //     get_job_power(h, job_map_data->entries[i].data);
+    //   }
+    //   if (job_map_data->size > 0)
+    //     initialized++;
+    //   if (initialized % 3 == 0) {
+    //     update_power_policy();
+    //     update_power_distribution_strategy();
+    //     set_powercap();
+    //
+    //     // Currently, the device capabilities are being retrieved during the
+    //     first
+    //     // powercap RPC, which disrupts the overall structure of power
+    //     capping. At
+    //     // present, a temporary workaround is being used to manage this issue
+    //     // since the existing code structure doesn't allow RPC calls to be
+    //     made
+    //     // from other files. A refactor is planned for this section, which
+    //     will
+    //     // centralize all RPC calls into a single file. This will enable
+    //     calls to
+    //     // be made from any location, not just the main file, thereby
+    //     improving
+    //     // the flexibility and maintainability of the code.
+    //     //
+    //
+    //     if (send_powercap_rpc(h, rank, node_hostname) < 0) {
+    //       log_error("ERROR Unable to set powercap");
+    //     }
+    //   }
   }
 }
 void flux_pwr_manager_get_hostname_cb(flux_t *h, flux_msg_handler_t *mh,
@@ -754,7 +757,7 @@ error:
         {
             "type": "GPU",
             "count": 2,
-            "power_capping": {"min": 10, "max": 50}
+            "power_capping": {"min": 10, "max": 50}:warn("%s");
         },
         {
             "type": "CPU",
@@ -787,8 +790,6 @@ void flux_pwr_manager_get_node_power_capabilities_cb(flux_t *h,
     errmsg = "Unable to unpack RPC";
     goto err;
   }
-  log_message("RPC_REPSONE:I am %s and got a request for node capab",
-              node_hostname);
   int variorum_result =
       handle_variorum_and_parse(s, &current_node_capabilities);
   if (variorum_result == -1) {
@@ -864,23 +865,23 @@ void flux_pwr_manager_set_power_strategy_cb(flux_t *h, flux_msg_handler_t *mh,
     dynamic_power_policy_init(current_power_strategy);
   if (type == UNIFORM)
     uniform_power_policy_init(current_power_strategy);
-  log_message("Power profile is %d", type);
 
 err:
   if (flux_respond_error(h, msg, errno, errmsg) < 0)
     log_error("%s: flux_respond_error", __FUNCTION__);
 }
-int handle_node_job_notification(char *topic, uint64_t jobId) {
-  static int i=0;
-  log_message("Test i%d",i);
+int handle_node_job_notification(char *topic, uint64_t jobId, char *job_cwd,
+                                 double power_budget, char *job_name) {
+  static int i = 0;
   i++;
   if (topic == NULL)
     return -1;
-  log_message("Handle_node_job_notiication %s, jobId %d and rank,%d", topic,
-              jobId, rank);
   if (strcmp(topic, "job.state.run") == 0) {
-    if (node_manager_new_job(jobId) < 0)
+
+    if (node_manager_new_job(jobId, job_cwd, job_name) < 0)
       return -1;
+    log_message("powepcap setting status %d",
+                node_manager_set_powerlimit(power_budget));
   } else if (strcmp(topic, "job.inactive-add") == 0) {
     if (node_manager_finish_job(jobId) < 0)
       return -1;
@@ -888,17 +889,19 @@ int handle_node_job_notification(char *topic, uint64_t jobId) {
 
   return 0;
 }
-int send_node_notify_rpc(char *topic, uint64_t jobId, char *hostname) {
+int send_node_notify_rpc(char *topic, uint64_t jobId, char *hostname,
+                         char *job_cwd, char *job_name) {
   int local_rank = 0;
-  static int i=0;
+  static int i = 0;
   if (hostname == NULL)
     return -1;
   if (topic == NULL)
     return -1;
   local_rank = find_rank_hostname(hostname);
   if (flux_rpc_pack(flux_handler, "flux_pwr_manager.jobtap_node_notify",
-                    local_rank, 0, "{s:s s:I}", "topic", topic, "id",
-                    jobId) < 0) {
+                    local_rank, 0, "{s:s s:I s:s s:f,s:s}", "topic", topic,
+                    "id", jobId, "cwd", job_cwd, "pl",
+                    global_power_budget / size, "name", job_name) < 0) {
     log_error("RPC_ERROR:Error in sending notification to node");
     return -1;
   }
@@ -910,24 +913,23 @@ void handle_jobtap_nodelist_rpc(flux_future_t *f, void *args) {
   char *topic = (char *)args;
   char *node_string;
   uint64_t id;
+  char *job_cwd;
+  char *job_name;
 
-  if (flux_rpc_get_unpack(f, "{s:{s:I s:s}}", "job", "id", &id, "nodelist",
-                          &node_string) < 0) {
+  if (flux_rpc_get_unpack(f, "{s:{s:I s:s s:s,s:s}}", "job", "id", &id,
+                          "nodelist", &node_string, "cwd", &job_cwd, "name",
+                          &job_name) < 0) {
     log_error("RPC_INFO:Unable to parse RPC data %s",
               flux_future_error_string(f));
     flux_future_destroy(f);
     return;
   }
   int ret = getNodeList((char *)node_string, &job_hostname_list, &size);
-  log_message("ret is %d and size is %d ", ret, size);
   if (ret < 0) {
-    log_message("Unable to get nodelist");
     goto error;
   }
   for (int i = 0; i < size; i++)
-    log_message("Node name %s", job_hostname_list[i]);
-  for (int i = 0; i < size; i++)
-    send_node_notify_rpc(topic, id, job_hostname_list[i]);
+    send_node_notify_rpc(topic, id, job_hostname_list[i], job_cwd, job_name);
 error:
   for (int i = 0; i < size; i++) {
     free(job_hostname_list[i]);
@@ -955,8 +957,6 @@ void flux_pwr_manager_job_notification_rpc_cb(flux_t *h, flux_msg_handler_t *mh,
     return;
   }
   topic = strdup(topic_ref);
-  log_message("RPC_INFO: TOPIC %s Job Info %ld with time submit %f", topic, id,
-              t_submit);
 
   json_t *attrs_array = json_array();
   if (!attrs_array) {
@@ -982,8 +982,9 @@ void flux_pwr_manager_job_notification_rpc_cb(flux_t *h, flux_msg_handler_t *mh,
   if (nanosleep(&req, &rem) < 0) {
     log_error("Error in Sleep during flux_pwr_manager job_notify");
   }
-  f = flux_rpc_pack(h, "job-list.list-id", FLUX_NODEID_ANY, 0, "{s:I s:[s]}",
-                    "id", id, "attrs", "nodelist");
+  f = flux_rpc_pack(h, "job-list.list-id", FLUX_NODEID_ANY, 0,
+                    "{s:I s:[s,s,s]}", "id", id, "attrs", "nodelist", "cwd",
+                    "name");
   if (!f) {
     log_error("RPC_ERROR:Unable to send RPC to get job info in jobtap %d");
     free(topic);
@@ -1005,14 +1006,24 @@ void flux_pwr_manager_notify_node(flux_t *h, flux_msg_handler_t *mh,
   uint64_t jobId;
   char *topic_ref;
   char *topic;
-  if (flux_request_unpack(msg, NULL, "{s:s s:I}", "topic", &topic_ref, "id",
-                          &jobId) < 0)
+  char *job_cwd_ref;
+  char *job_cwd;
+  char *job_name_ref;
+  char *job_name;
+  double power_budget;
+  if (flux_request_unpack(msg, NULL, "{s:s s:I s:s s:f,s:s}", "topic",
+                          &topic_ref, "id", &jobId, "cwd", &job_cwd_ref, "pl",
+                          &power_budget, "name", &job_name_ref) < 0)
     log_message("RPC_ERROR: unapck error notify node");
   topic = strdup(topic_ref);
-  log_message("My rank %d", rank);
-  if (handle_node_job_notification(topic, jobId) < 0)
+  job_cwd = strdup(job_cwd_ref);
+  job_name = strdup(job_name_ref);
+  if (handle_node_job_notification(topic, jobId, job_cwd, power_budget,
+                                   job_name) < 0)
     log_message("Error in setting node_manager job notification");
   free(topic);
+  free(job_cwd);
+  free(job_name);
 }
 
 void flux_pwr_manager_jobtap_destructor_cb(flux_t *h, flux_msg_handler_t *mh,
@@ -1131,6 +1142,8 @@ int mod_main(flux_t *h, int argc, char **argv) {
   log_message("POST execution 0");
   node_manager_init(h, rank, size, node_hostname, SAMPLING_RATE * BUFFER_SIZE,
                     SAMPLING_RATE);
+  // node_manager_init(h, rank, size, node_hostname, 10,
+  //                   SAMPLING_RATE);
   log_message("POST execution 1");
 
   // Run!
