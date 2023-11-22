@@ -22,8 +22,6 @@ void *retro_queue_buffer_pop(retro_queue_buffer_t *buffer);
 size_t retro_queue_buffer_get_max_size(retro_queue_buffer_t *buffer);
 size_t retro_queue_buffer_get_current_size(retro_queue_buffer_t *buffer);
 void retro_queue_buffer_destroy(retro_queue_buffer_t *buffer);
-size_t retro_queue_buffer_find_start(retro_queue_buffer_t *buffer,
-                                     comparator_fn comp, void *target);
 void *retro_queue_buffer_iterate_from(retro_queue_buffer_t *buffer,
                                       comparator_fn comp, void *target,
                                       iterator_fn elem_func, void *user_data,

@@ -16,7 +16,7 @@ bool job_active = false;
 pthread_cond_t fft_cond = PTHREAD_COND_INITIALIZER;
 pthread_mutex_t fft_mutex = PTHREAD_MUTEX_INITIALIZER;
 fftw_complex *fft_input;
-node_power *current_element;
+node_power *current_element_fft;
 int num_copied = 0;
 int global_copied = 0;
 size_t fft_data_size = 0;
@@ -95,11 +95,11 @@ void *fft_thread_func(void *args) {
     while (job_active && fft_data_size < THREE_MINUTES) {
       wait_result = pthread_cond_timedwait(&fft_cond, &fft_mutex, &wait_time);
       if (wait_result == ETIMEDOUT) {
-        if (!current_element)
+        if (!current_element_fft)
           continue;
-        current_element = retro_queue_buffer_iterate_from(
+        current_element_fft = retro_queue_buffer_iterate_from(
             node_power_data->node_power_time, &node_power_cmp,
-            (void *)current_element, &copy_node_power_to_fftw_callback,
+            (void *)current_element_fft, &copy_node_power_to_fftw_callback,
             (void *)fft_input, THIRTY_SECONDS);
         fft_data_size += num_copied;
         num_copied = 0;
@@ -167,7 +167,7 @@ void fft_predictor_new_job() {
   num_copied = 0;
   fft_data_size = 0;
   pthread_mutex_lock(&node_power_data->node_power_time->mutex);
-  current_element =
+  current_element_fft =
       (node_power *)zlist_tail(node_power_data->node_power_time->list);
   pthread_mutex_unlock(&node_power_data->node_power_time->mutex);
   pthread_cond_signal(&fft_cond); // Wake up the FFT thread
@@ -180,7 +180,7 @@ void fft_predictor_finish_job() {
 
   pthread_mutex_lock(&fft_mutex);
   job_active = false;
-  current_element = NULL;
+  current_element_fft = NULL;
   global_copied = 0;
   num_copied = 0;
   fft_data_size = 0;

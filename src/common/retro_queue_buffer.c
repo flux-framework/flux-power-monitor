@@ -4,28 +4,6 @@
 
 #include "retro_queue_buffer.h"
 #include <pthread.h>
-size_t retro_queue_buffer_find_start(retro_queue_buffer_t *buffer,
-                                     comparator_fn comp, void *target) {
-  if (buffer == NULL || buffer->current_size == 0 || comp == NULL)
-    return -1;
-
-  pthread_mutex_lock(&buffer->mutex); // Ensure thread safety
-
-  void *element = zlist_first(buffer->list);
-  ssize_t index = 0;
-
-  while (element) {
-    if (comp(element, target)) {
-      pthread_mutex_unlock(&buffer->mutex);
-      return index;
-    }
-    element = zlist_next(buffer->list);
-    ++index;
-  }
-
-  pthread_mutex_unlock(&buffer->mutex); // Unlock before returning
-  return -1;                            // No match found
-}
 retro_queue_buffer_t *retro_queue_buffer_new(size_t max_size,
                                              destructor_fn destructor) {
   retro_queue_buffer_t *buffer =
@@ -154,8 +132,6 @@ void *retro_queue_buffer_iterate_until_before_tail(retro_queue_buffer_t *buffer,
       buffer->current_size <=
           1) // Ensure there's at least a tail and one other element
     return NULL;
-  static int counter = 0;
-  static int counter2 = 0;
   pthread_mutex_lock(&buffer->mutex);
   void *last_element = NULL;
   void *next_element = NULL;
@@ -164,10 +140,7 @@ void *retro_queue_buffer_iterate_until_before_tail(retro_queue_buffer_t *buffer,
   // Attempt to find the starting element
   while (element) {
     if (comp && comp(element, comp_criterion)) {
-      counter2++;
       start_found = true;
-      printf("Element found %d and max current size %ld\n", counter2,
-             buffer->current_size);
       break;
     }
     element = zlist_next(buffer->list);
@@ -179,12 +152,9 @@ void *retro_queue_buffer_iterate_until_before_tail(retro_queue_buffer_t *buffer,
 
   // Iterate from the found element to the one before the tail
   while (element) {
-    printf("counter %d\n", counter);
-    counter++;
     next_element = zlist_next(buffer->list);
     if (!next_element) { // If next is NULL, current is the tail; stop
                          // processing and prepare to return it
-      printf("next element is null, we are done\n");
       break;
     }
 

@@ -878,10 +878,10 @@ int handle_node_job_notification(char *topic, uint64_t jobId, char *job_cwd,
     return -1;
   if (strcmp(topic, "job.state.run") == 0) {
 
-    if (node_manager_new_job(jobId, job_cwd, job_name) < 0)
-      return -1;
     log_message("powepcap setting status %d",
                 node_manager_set_powerlimit(power_budget));
+    if (node_manager_new_job(jobId, job_cwd, job_name) < 0)
+      return -1;
   } else if (strcmp(topic, "job.inactive-add") == 0) {
     if (node_manager_finish_job(jobId) < 0)
       return -1;
@@ -1025,7 +1025,22 @@ void flux_pwr_manager_notify_node(flux_t *h, flux_msg_handler_t *mh,
   free(job_cwd);
   free(job_name);
 }
-
+// void flux_pwr_manager_set_node_power_ratio_cb(flux_t *h, flux_msg_handler_t *mh,
+//                                               const flux_msg_t *msg,
+//                                               void *args) {}
+//
+// void flux_pwr_manager_set_power_ratio_cb(flux_t *h, flux_msg_handler_t *mh,
+//                                          const flux_msg_t *msg, void *args) {
+//   uint64_t jobid;
+//   int power_ratio;
+//   if(flux_request_unpack(msg,NULL,"{s:I s:i}","jobId",&jobid,"p_r",&power_ratio)<0){
+//     goto error;
+//   }
+//   
+//   // flux_rpc_pack(h,)
+//   error:
+//
+// }
 void flux_pwr_manager_jobtap_destructor_cb(flux_t *h, flux_msg_handler_t *mh,
                                            const flux_msg_t *msg, void *args) {
   char **hostname_list;
@@ -1045,6 +1060,10 @@ static const struct flux_msg_handler_spec htab[] = {
      flux_pwr_manager_set_powerlimit_cb, 0},
     {FLUX_MSGTYPE_REQUEST, "flux_pwr_manager.set_power_strategy",
      flux_pwr_manager_set_power_strategy_cb, 0},
+    // {FLUX_MSGTYPE_REQUEST, "flux_pwr_manager.set_power_ratio",
+    //  flux_pwr_manager_set_power_ratio_cb, 0},
+    // {FLUX_MSGTYPE_REQUEST, "flux_pwr_manager.set_node_power_ratio",
+    //  flux_pwr_manager_set_node_power_ratio_cb, 0},
     {FLUX_MSGTYPE_REQUEST, "flux_pwr_manager.get_node_power_capabilities",
      flux_pwr_manager_get_node_power_capabilities_cb, 0},
     {FLUX_MSGTYPE_REQUEST, "flux_pwr_manager.get_hostname",

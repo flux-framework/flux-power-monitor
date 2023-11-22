@@ -17,7 +17,7 @@
 #include <time.h>
 #include <unistd.h>
 #define MAX_FILENAME_SIZE 256
-
+#define POWER_RATIO 0
 pthread_mutex_t file_mutex;
 pthread_mutex_t data_mutex;
 pthread_cond_t file_cond; // file is ready
@@ -26,7 +26,7 @@ bool terminate_thread = false; // Flag to signal thread termination
 bool write_to_file = false;    // Flag to control when to write to file
 bool job_running = false;      // Indicates whether a job is currently running
 bool global_file_write = true; // Global flag to enable/disable file writing
-node_power *current_element =
+node_power *current_element_monitor =
     NULL; // Tracks the element from which to start copying
 int retro_queue_buffer_marker = -1; // Marker for circular buffer data
 char output_filename[MAX_FILENAME_SIZE] = "default_output.csv";
@@ -52,14 +52,11 @@ void free_global_buffer() {
 
 // Callback function for concatenating csv strings
 void concatenate_csv_callback(void *data, void *user_data) {
-  static int num_times = 0;
   node_power *np = (node_power *)data;
   char **temp_buffer = (char **)user_data;
-
+  // printf("timestamp during csv_callback %ld\n",np->timestamp);
   // Concatenate the fixed-size string
   strcat(*temp_buffer, np->csv_string);
-  num_times++;
-  log_message("num_times %d", num_times);
 }
 
 void update_temp_buffer(retro_queue_buffer_t *buffer, size_t start_index) {
@@ -68,12 +65,9 @@ void update_temp_buffer(retro_queue_buffer_t *buffer, size_t start_index) {
     fprintf(stderr, "Global buffer is not allocated\n");
     return;
   }
-  log_message(
-      "POWER_MONITOR:Updating temp_buffer current buffer size %ld",
-      retro_queue_buffer_get_current_size(node_power_data->node_power_time));
-  current_element = retro_queue_buffer_iterate_until_before_tail(
-      buffer, &node_power_cmp, current_element, concatenate_csv_callback,
-      &global_temp_buffer);
+  current_element_monitor = retro_queue_buffer_iterate_until_before_tail(
+      buffer, &node_power_cmp, current_element_monitor,
+      &concatenate_csv_callback, &global_temp_buffer);
   // retro_queue_buffer_iterate_partial(buffer, concatenate_csv_callback,
   //                                 &global_temp_buffer, start_index,
   //                                 end_index);
@@ -92,7 +86,7 @@ void *add_data_to_buffer_thread(void *arg) {
     char *s = malloc(1500);
     if (s == NULL) {
       log_error("unable to allocate s variorum\n");
-      error=-1;
+      error = -1;
       goto calculate_sleep; // Jump to sleep calculation
     }
 
@@ -100,7 +94,7 @@ void *add_data_to_buffer_thread(void *arg) {
     if (ret < 0) {
       log_error("unable to get variorum data\n");
       free(s);
-      error=-1;
+      error = -1;
       goto calculate_sleep; // Jump to sleep calculation
     }
 
@@ -146,6 +140,7 @@ void *add_data_to_buffer_thread(void *arg) {
     // Check if we should still insert data after potential long processing
     if (!terminate_thread && p_data) {
       retro_queue_buffer_push(node_power_data->node_power_time, p_data);
+      // printf("entry time stamp %ld \n", p_data->timestamp);
       if (retro_queue_buffer_marker > 0)
         retro_queue_buffer_marker--;
     }
@@ -222,7 +217,9 @@ void power_monitor_start_job(uint64_t jobId, char *job_cwd, char *job_name) {
     retro_queue_buffer_marker =
         retro_queue_buffer_get_max_size(node_power_data->node_power_time) - 1;
     pthread_mutex_lock(&node_power_data->node_power_time->mutex);
-    current_element = zlist_tail(node_power_data->node_power_time->list);
+    current_element_monitor =
+        (node_power *)zlist_tail(node_power_data->node_power_time->list);
+    log_message("current message %ld", current_element_monitor->timestamp);
     pthread_mutex_unlock(&node_power_data->node_power_time->mutex);
     pthread_mutex_unlock(&data_mutex);
 
@@ -247,7 +244,7 @@ void power_monitor_end_job() {
         node_power_data->node_power_time,
         retro_queue_buffer_get_max_size(node_power_data->node_power_time));
     retro_queue_buffer_marker = -1;
-    current_element = NULL;
+    current_element_monitor = NULL;
     pthread_mutex_unlock(&data_mutex);
     // Serialize access to file
     pthread_mutex_lock(&file_mutex);
@@ -260,8 +257,11 @@ void power_monitor_end_job() {
 }
 
 int power_monitor_set_node_powercap(double powercap) {
-  variorum_cap_gpu_power_ratio(100);
+
+  variorum_cap_gpu_power_ratio(POWER_RATIO);
+
   return variorum_cap_best_effort_node_power_limit(powercap);
+
 }
 
 void destroy_pthread_component() {

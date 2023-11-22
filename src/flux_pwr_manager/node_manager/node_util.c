@@ -56,9 +56,9 @@ node_power *parse_string(const char *input_str) {
 
   double gpu_power_value = 0.0;
   value = json_object_get(root, "power_gpu_watts_socket_0");
-  if (json_is_real(value)){
+  if (json_is_real(value)) {
     gpu_power_value = json_real_value(value);
-    np->gpu_power[0]=gpu_power_value;
+    np->gpu_power[0] = gpu_power_value;
   }
 
   value = json_object_get(root, "power_mem_watts_socket_1");
@@ -108,6 +108,7 @@ int allocate_global_buffer(char **buffer, size_t buffer_size) {
 int node_power_cmp(void *element, void *target) {
   node_power *element_power = (node_power *)element;
   node_power *target_power = (node_power *)target;
+
   if (target_power->timestamp == element_power->timestamp)
     return true;
   return false;

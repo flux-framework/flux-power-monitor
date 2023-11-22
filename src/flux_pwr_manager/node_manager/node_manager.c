@@ -30,8 +30,8 @@ uint32_t node_rank;
 uint32_t cluster_size;
 node_data *node_power_data = NULL;
 // Some strong assumptions:
-//  1. Each node will be only running a small number of jobs(2-3)
-//  2.
+//  1. Each node will be only a single job(No coscheduling)
+
 
 int node_manager_init(flux_t *h, uint32_t rank, uint32_t size, char *hostname,
                       size_t buffer_size, size_t sampling_rate) {
