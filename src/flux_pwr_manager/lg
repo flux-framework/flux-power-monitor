@@ -1,0 +1,67 @@
+#if HAVE_CONFIG_H
+#include "config.h"
+#endif
+#include "cluster_pwr_mgr.h"
+#include "job_hash.h"
+cluster_mgr_t *cluster_mgr_new(double global_power_budget) {
+  if (global_power_budget == 0)
+    return NULL;
+  cluster_mgr_t *cluster_mgr = malloc(sizeof(cluster_mgr_t));
+  if (!cluster_mgr)
+    return NULL;
+  cluster_mgr->job_hash_table = job_hash_create();
+  if (!cluster_mgr->job_hash_table)
+    return NULL;
+  zhashx_set_destructor(cluster_mgr->job_hash_table, job_map_destory);
+  cluster_mgr->global_power_budget = global_power_budget;
+  return cluster_mgr;
+}
+
+int cluster_mgr_add_new_job(cluster_mgr_t *cluster_mgr, uint64_t jobId,
+                            char *nodelist, char *cwd) {
+  if (jobId == 0 || !nodelist || !cwd || !cluster_mgr)
+    return -1;
+  job_map_t *map = malloc(sizeof(job_map_t));
+  if(!map)
+    return -1;
+  map->jobId = jobId;
+  map->job_pwr_manager = job_mgr_new(jobId, nodelist, cwd);
+  if(!map->job_pwr_manager)
+    return -1;
+  if(!cluster_mgr->job_hash_table)
+    return -1;
+  zhashx_insert(cluster_mgr->job_hash_table, (void *)jobId, (void *)map);
+  return 0;
+}
+int cluster_mgr_remove_job(cluster_mgr_t *cluster_mgr, uint64_t jobId) {
+  if (jobId == 0 || !cluster_mgr)
+    return -1;
+  if(!cluster_mgr->job_hash_table)
+    return -1;
+  zhashx_delete(cluster_mgr->job_hash_table, (void *)jobId);
+  return 0;
+}
+void cluster_mgr_destroy(cluster_mgr_t **manager) {
+  if (manager && *manager) {
+    cluster_mgr_t *mgr = (cluster_mgr_t *)*manager;
+    zhashx_purge(mgr->job_hash_table);
+    zhashx_destroy(&mgr->job_hash_table);
+    free(mgr);
+    mgr = NULL;
+  }
+}
+void job_map_destory(void **job_map) {
+  if (job_map && *job_map) {
+    job_map_t *proper_job_map = (job_map_t *)*job_map;
+    job_mgr_destroy(&proper_job_map->job_pwr_manager);
+    free(proper_job_map);
+    proper_job_map=NULL;
+  }
+}
+
+int cluster_mgr_set_global_pwr_budget(cluster_mgr_t* cluster_mgr,double pwr){
+  if(!cluster_mgr)
+    return -1;
+  cluster_mgr->global_power_budget=pwr;
+return 0;
+}

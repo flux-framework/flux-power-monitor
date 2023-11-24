@@ -466,14 +466,10 @@ void handle_jobtap_nodelist_rpc(flux_future_t *f, void *args) {
     goto error;
   }
   if (strcmp(topic, "job.state.run") == 0) {
-    cluster_mgr_add_new_job(current_cluster_mgr, id, job_hostname_list, size,
-                            job_cwd);
+    cluster_mgr_add_new_job(current_cluster_mgr, id, node_string, job_hostname_list,size,job_cwd);
   } else if (strcmp(topic, "job.inactive-add") == 0) {
     cluster_mgr_remove_job(current_cluster_mgr, id);
   }
-  for (int i = 0; i < size; i++)
-    free(job_hostname_list[i]);
-  free(job_hostname_list);
   // for (int i = 0; i < size; i++)
   //   send_node_notify_rpc(topic, id, job_hostname_list[i], job_cwd, job_name);
 error:

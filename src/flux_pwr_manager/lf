@@ -1,0 +1,19 @@
+#ifndef FLUX_PWR_MANAGER_JOB_PWR_MANAGER_H
+#define FLUX_PWR_MANAGER_JOB_PWR_MANAGER_H
+#include "pwr_info.h"
+#include "retro_queue_buffer.h"
+#include <unistd.h>
+// Responsible for dealing with all things releated to job power manager
+typedef struct {
+
+  uint64_t jobId;
+  int num_of_nodes;
+  char **node_hostname_list;
+  double powerlimit;
+  retro_queue_buffer_t *power_history;
+  pwr_info pwr_data;
+} job_info;
+void job_pwr_manager_init(char **node_hostname_list,int num_of_nodes);
+void request_node_power_info(flux_t *h, flux_msg_handler_t *mh,
+              const flux_msg_t *msg, void *arg);
+#endif
