@@ -17,7 +17,7 @@ static int jobtap_cb(flux_plugin_t *p, const char *topic,
 
   // log_message("JOBTAP:Topic: %s User Id : %d, t_submit: %f and jobId %ld", topic,
               // userid, t_submit, id);
-  if (flux_rpc_pack(h, "flux_pwr_manager.job_notify", FLUX_NODEID_ANY, 0,
+  if (flux_rpc_pack(h, "pwr_mgr.job_notify", FLUX_NODEID_ANY, 0,
                     "{s:s s:I s:f s:i}", "topic", topic, "id", id, "t_submit",
                     t_submit, "userId", userid) < 0) {
     log_error("JOBTAP:Cannot send RPC at jobtap_cb module");
@@ -26,7 +26,7 @@ static int jobtap_cb(flux_plugin_t *p, const char *topic,
 }
 static void destructor(void *args) {
   bool terminated = true;
-  if (flux_rpc_pack(h, "flux_pwr_manager.jobtap_destructor_notify",
+  if (flux_rpc_pack(h, "pwr_mgr.jobtap_destructor_notify",
                     FLUX_NODEID_ANY, 0, "{s:b}", "terminated",
                     terminated) < 0) {
     log_error("JOBTAP:Unable to send RPC for jobtap destructor");

@@ -9,7 +9,6 @@
 #include "power_monitor.h"
 #include "response_power_data.h"
 #include "retro_queue_buffer.h"
-#include "root_node_level_info.h"
 #include "util.h"
 #include "variorum.h"
 #include <assert.h>
@@ -31,7 +30,6 @@ uint32_t cluster_size;
 node_data *node_power_data = NULL;
 // Some strong assumptions:
 //  1. Each node will be only a single job(No coscheduling)
-
 
 int node_manager_init(flux_t *h, uint32_t rank, uint32_t size, char *hostname,
                       size_t buffer_size, size_t sampling_rate) {
@@ -78,6 +76,17 @@ int node_manager_destructor() {
   return 0;
 }
 
+int node_manager_finish_job(uint64_t jobId) {
+  if (node_power_data->jobId != jobId)
+    return -1;
+  else if (node_power_data->jobId != -1) {
+    node_power_data->jobId = -1;
+    power_monitor_end_job();
+    fft_predictor_finish_job();
+  }
+  log_message("NM:Job Finished");
+  return 0;
+}
 int node_manager_new_job(uint64_t jobId, char *job_cwd, char *job_name) {
   if (node_power_data->jobId == -1) {
     node_power_data->jobId = jobId;
@@ -91,17 +100,40 @@ int node_manager_new_job(uint64_t jobId, char *job_cwd, char *job_name) {
   log_message("NM: New job %ld", jobId);
   return 0;
 }
-
-int node_manager_finish_job(uint64_t jobId) {
-  if (node_power_data->jobId != jobId)
-    return -1;
-  else if (node_power_data->jobId != -1) {
-    node_power_data->jobId = -1;
-    power_monitor_end_job();
-    fft_predictor_finish_job();
+void node_manager_set_pl_cb(flux_t *h, flux_msg_handler_t *mh,
+                            const flux_msg_t *msg, void *args) {
+  double powerlimit = 0;
+  if (flux_request_unpack(msg, NULL, "{s:f}", "pl", &powerlimit) < 0) {
+    log_error("RPC_ERROR:Unable to decode set powerlimit RPC");
   }
-  log_message("NM:Job Finished");
-  return 0;
+  node_manager_set_powerlimit(powerlimit);
 }
+void node_manager_end_job_cb(flux_t *h, flux_msg_handler_t *mh,
+                             const flux_msg_t *msg, void *args) {
+  uint64_t jobId;
+  if (flux_request_unpack(msg, NULL, "{s:I}", "jobid", &jobId) < 0) {
+    log_error("RPC_ERROR:Unable to decode end job RPC");
+  }
+  node_manager_finish_job(jobId);
+}
+void node_manager_new_job_cb(flux_t *h, flux_msg_handler_t *mh,
+                             const flux_msg_t *msg, void *args) {
+  uint64_t jobId;
+  char *job_cwd;
+  char *job_name;
+  double powerlimit;
+  int errno;
+  errno = 0;
+  log_message("RPC GOT it");
+  if (flux_request_unpack(msg, NULL, "{s:I s:s s:s s:f}", "jobid", &jobId,
+                          "cwd", &job_cwd, "name", &job_name, "pl",
+                          &powerlimit) < 0) {
+    errno = -1;
+    log_error("RPC_ERROR:unpack error for node_manager newjob");
+  }
+  node_manager_new_job(jobId, job_cwd, job_name);
+  node_manager_set_powerlimit(powerlimit);
+}
+
 // void node_flux_powerlimit_rpc_cb(flux_t *h, flux_msg_handler_t *mh,
 //                                  const flux_msg_t *msg, void *arg) {}

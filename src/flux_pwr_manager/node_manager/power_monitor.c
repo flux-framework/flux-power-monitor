@@ -9,7 +9,6 @@
 #include "power_monitor.h"
 #include "response_power_data.h"
 #include "retro_queue_buffer.h"
-#include "root_node_level_info.h"
 #include "util.h"
 #include "variorum.h"
 #include <czmq.h>
