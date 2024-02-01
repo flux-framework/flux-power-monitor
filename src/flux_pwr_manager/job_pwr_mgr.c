@@ -52,8 +52,12 @@ int send_new_job_rpc(flux_t *h, job_mgr_t *job_mgr) {
     int local_rank = job_mgr->hostname_rank_mapping[i];
     log_message("local rank %d", local_rank);
     if (local_rank == 0) {
+      log_message("RANK 0 power ratio setting %d", job_mgr->power_ratio);
       node_manager_new_job(job_mgr->jobId, job_mgr->cwd, job_mgr->job_name);
-      node_manager_set_powerlimit(power_data[i]);
+      if ((node_manager_set_powerlimit(power_data[i]) < 0) ||
+          (node_manager_set_power_ratio(job_mgr->power_ratio) < 0))
+        log_error("ERROR in setting rank 0 node power settings");
+
     } else {
       log_message("checking  sending RPC to rank %d job_mgr "
                   "jobId %ld cwd %s name %s power %f",
@@ -61,8 +65,9 @@ int send_new_job_rpc(flux_t *h, job_mgr_t *job_mgr) {
                   power_data[i]);
       flux_future_t *f = flux_rpc_pack(
           h, "pwr_mgr.nm-new_job", local_rank, FLUX_RPC_NORESPONSE,
-          "{s:I s:s s:s s:f}", "jobid", job_mgr->jobId, "cwd", job_mgr->cwd,
-          "name", job_mgr->job_name, "pl", power_data[i]);
+          "{s:I s:s s:s s:f s:i}", "jobid", job_mgr->jobId, "cwd", job_mgr->cwd,
+          "name", job_mgr->job_name, "pl", power_data[i], "pr",
+          job_mgr->power_ratio);
       if (!f) {
         log_error("RPC_ERROR:new job notification failure");
         errnos = -1;
@@ -95,7 +100,8 @@ int send_end_job_rpc(flux_t *h, job_mgr_t *job_mgr) {
 }
 job_mgr_t *job_mgr_new(uint64_t jobId, char **nodelist, int num_of_nodes,
                        char *cwd, char *job_name, POWER_POLICY_TYPE pwr_policy,
-                       double powerlimit, int *node_indices_para, flux_t *h) {
+                       double powerlimit, int power_ratio,
+                       int *node_indices_para, flux_t *h) {
   bool error = false;
   if (!nodelist || num_of_nodes == 0 || !cwd)
     return NULL;
@@ -142,6 +148,7 @@ job_mgr_t *job_mgr_new(uint64_t jobId, char **nodelist, int num_of_nodes,
   }
   job_mgr->jobId = jobId;
   job_mgr->powerlimit = powerlimit;
+  job_mgr->power_ratio = power_ratio;
   job_mgr->cwd = strdup(cwd);
   job_mgr->job_name = strdup(job_name);
   send_new_job_rpc(h, job_mgr);

@@ -11,6 +11,8 @@ flux_t *flux_handle;
 char **cluster_node_hostname_list;
 int nodes_in_cluster;
 cluster_mgr_t *self = NULL;
+int global_power_ratio = 100; // Right now power ratio is global. All power is
+                              // always distributed to GPUs.
 int current_nodes_utilized = 0;
 
 cluster_mgr_t *cluster_mgr_new(flux_t *h, double global_power_budget,
@@ -40,10 +42,28 @@ cluster_mgr_t *cluster_mgr_new(flux_t *h, double global_power_budget,
   cluster_mgr->num_of_nodes = cluster_size;
   nodes_in_cluster = cluster_size;
   self = cluster_mgr;
-  flux_handle=h;
+  flux_handle = h;
   return cluster_mgr;
 }
+// Uniform power distributed
+double redistribute_power(cluster_mgr_t *cluster_mgr, int num_of_nodes) {
 
+  double new_per_node_powerlimit =
+      cluster_mgr->global_power_budget / (num_of_nodes);
+
+  void *data = zhashx_first(cluster_mgr->job_hash_table);
+
+  while (data != NULL) {
+    job_mgr_t *job_mgr_next = (job_mgr_t *)data;
+    double new_job_powelimit =
+        new_per_node_powerlimit * job_mgr_next->num_of_nodes;
+
+    job_mgr_update_powerlimit(job_mgr_next, flux_handle, new_job_powelimit);
+
+    void *data = zhashx_next(cluster_mgr->job_hash_table);
+  }
+  return new_per_node_powerlimit;
+}
 double get_new_job_powerlimit(cluster_mgr_t *cluster_mgr,
                               double num_of_requested_nodes_count) {
 
@@ -63,21 +83,8 @@ double get_new_job_powerlimit(cluster_mgr_t *cluster_mgr,
   // Not sufficient power for each node, each job has to suffer now.
   // Each job is getting total_pow/total_num_of_nodes.
   else if (theortical_power_per_node < MAX_NODE_PWR) {
-    double new_per_node_powerlimit =
-        cluster_mgr->global_power_budget /
-        (current_nodes_utilized + num_of_requested_nodes_count);
-
-    void *data = zhashx_first(cluster_mgr->job_hash_table);
-
-    while (data != NULL) {
-      job_mgr_t *job_mgr_next = (job_mgr_t *)data;
-      double new_job_powelimit =
-          new_per_node_powerlimit * job_mgr_next->num_of_nodes;
-
-      job_mgr_update_powerlimit(job_mgr_next, flux_handle, new_job_powelimit);
-
-      void *data = zhashx_next(cluster_mgr->job_hash_table);
-    }
+    double new_per_node_powerlimit = redistribute_power(
+        cluster_mgr, current_nodes_utilized + num_of_requested_nodes_count);
     powerlimit_job = new_per_node_powerlimit * num_of_requested_nodes_count;
   }
   cluster_mgr->current_power_usage += powerlimit_job;
@@ -115,7 +122,7 @@ int cluster_mgr_add_new_job(cluster_mgr_t *cluster_mgr, uint64_t jobId,
   double job_pl = get_new_job_powerlimit(cluster_mgr, requested_nodes_count);
   map->job_pwr_manager =
       job_mgr_new(jobId, nodelist, requested_nodes_count, cwd, job_name,
-                  UNIFORM, job_pl, ranks, flux_handle);
+                  UNIFORM, job_pl, global_power_ratio, ranks, flux_handle);
   if (!map->job_pwr_manager)
     return -1;
   if (!cluster_mgr->job_hash_table)
@@ -136,8 +143,9 @@ int cluster_mgr_remove_job(cluster_mgr_t *cluster_mgr, uint64_t jobId) {
   if (!job_map) {
     log_message("lookup failure");
     log_message("hash table size %d", zhashx_size(cluster_mgr->job_hash_table));
-    log_message("hash table first_element %ld",
-                (uint64_t)zlistx_first(zhashx_keys(cluster_mgr->job_hash_table)));
+    log_message(
+        "hash table first_element %ld",
+        (uint64_t)zlistx_first(zhashx_keys(cluster_mgr->job_hash_table)));
     return -1;
   }
 
@@ -178,4 +186,26 @@ int cluster_mgr_set_global_pwr_budget(cluster_mgr_t *cluster_mgr, double pwr) {
     return -1;
   cluster_mgr->global_power_budget = pwr;
   return 0;
+}
+
+void cluster_mgr_set_global_powerlimit_cb(flux_t *h, flux_msg_handler_t *mh,
+                                          const flux_msg_t *msg, void *args) {
+  double powerlimit;
+  if (flux_request_unpack(msg, NULL, "{s:f}", "gl_pl", &powerlimit) < 0) {
+    log_error("RPC_ERROR:Unable to decode set powerlimit RPC");
+  }
+  if (powerlimit < 0)
+    return;
+  self->global_power_budget = powerlimit;
+  redistribute_power(self, current_nodes_utilized);
+}
+void cluster_mgr_set_power_ratio_cb(flux_t *h, flux_msg_handler_t *mh,
+                                    const flux_msg_t *msg, void *args) {
+
+  int powerratio;
+  if (flux_request_unpack(msg, NULL, "{s:i}", "pr", &powerratio) < 0) {
+    log_error("RPC_ERROR:Unable to decode set poweratio RPC");
+  }
+  log_message("Setting Power Ratio of cluster to %d", powerratio);
+  global_power_ratio = powerratio;
 }

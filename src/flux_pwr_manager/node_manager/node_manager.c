@@ -33,9 +33,6 @@ node_data *node_power_data = NULL;
 
 int node_manager_init(flux_t *h, uint32_t rank, uint32_t size, char *hostname,
                       size_t buffer_size, size_t sampling_rate) {
-  node_rank = rank;
-  cluster_size = size;
-  flux_handler = h;
   node_power_data = malloc(sizeof(node_data));
   if (node_power_data == NULL)
     return -1;
@@ -49,6 +46,9 @@ int node_manager_init(flux_t *h, uint32_t rank, uint32_t size, char *hostname,
   node_power_data->hostname = strdup(hostname);
   if (node_power_data->hostname == NULL)
     return -1;
+  node_rank = rank;
+  cluster_size = size;
+  flux_handler = h;
   power_sampling_rate = sampling_rate;
   power_monitor_init(buffer_size);
   fft_predictor_init();
@@ -116,6 +116,11 @@ void node_manager_end_job_cb(flux_t *h, flux_msg_handler_t *mh,
   }
   node_manager_finish_job(jobId);
 }
+int node_manager_set_power_ratio(int power_ratio) {
+  if (power_ratio < 0 || power_ratio > 100)
+    return -1;
+  return power_monitor_set_node_power_ratio(power_ratio);
+}
 void node_manager_new_job_cb(flux_t *h, flux_msg_handler_t *mh,
                              const flux_msg_t *msg, void *args) {
   uint64_t jobId;
@@ -125,14 +130,18 @@ void node_manager_new_job_cb(flux_t *h, flux_msg_handler_t *mh,
   int errno;
   errno = 0;
   log_message("RPC GOT it");
-  if (flux_request_unpack(msg, NULL, "{s:I s:s s:s s:f}", "jobid", &jobId,
-                          "cwd", &job_cwd, "name", &job_name, "pl",
-                          &powerlimit) < 0) {
+  int power_ratio;
+  if (flux_request_unpack(msg, NULL, "{s:I s:s s:s s:f s:i}", "jobid", &jobId,
+                          "cwd", &job_cwd, "name", &job_name, "pl", &powerlimit,
+                          "pr", &power_ratio) < 0) {
     errno = -1;
     log_error("RPC_ERROR:unpack error for node_manager newjob");
   }
+  log_message("New job with power ra  tio %d", power_ratio);
   node_manager_new_job(jobId, job_cwd, job_name);
-  node_manager_set_powerlimit(powerlimit);
+  if ((node_manager_set_powerlimit(powerlimit) < 0) ||
+      (node_manager_set_power_ratio(power_ratio) < 0))
+    log_error("ERROR in setting rank %d node power settings",node_rank);
 }
 
 // void node_flux_powerlimit_rpc_cb(flux_t *h, flux_msg_handler_t *mh,

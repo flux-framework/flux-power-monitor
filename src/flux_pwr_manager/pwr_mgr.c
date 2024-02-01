@@ -187,9 +187,6 @@ void handle_jobtap_nodelist_rpc(flux_future_t *f, void *args) {
   } else if (strcmp(topic, "job.inactive-add") == 0) {
     cluster_mgr_remove_job(current_cluster_mgr, id);
   }
-  for (int i = 0; i < size; i++)
-    free(job_hostname_list[i]);
-  free(job_hostname_list);
   // for (int i = 0; i < size; i++)
   //   send_node_notify_rpc(topic, id, job_hostname_list[i], job_cwd, job_name);
 error:
@@ -294,6 +291,10 @@ static const struct flux_msg_handler_spec htab[] = {
     {FLUX_MSGTYPE_REQUEST, "pwr_mgr.nm-new_job", node_manager_new_job_cb, 0},
     {FLUX_MSGTYPE_REQUEST, "pwr_mgr.nm-set_pl", node_manager_set_pl_cb, 0},
     {FLUX_MSGTYPE_REQUEST, "pwr_mgr.nm-end_job", node_manager_end_job_cb, 0},
+    {FLUX_MSGTYPE_REQUEST, "pwr_mgr.cm-set_powerratio",
+     cluster_mgr_set_power_ratio_cb, 0},
+    {FLUX_MSGTYPE_REQUEST, "pwr_mgr.cm-set_global_pl",
+     cluster_mgr_set_global_powerlimit_cb, 0},
     {FLUX_MSGTYPE_REQUEST, "pwr_mgr.get_hostname",
      flux_pwr_manager_get_hostname_cb, 0},
     {FLUX_MSGTYPE_REQUEST, "pwr_mgr.job_notify",

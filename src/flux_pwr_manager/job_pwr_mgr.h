@@ -11,9 +11,10 @@
 // Responsible for dealing with all things releated to job power manager
 typedef struct {
   uint64_t jobId;
-  int num_of_nodes;             // Num of nodes in job
+  int num_of_nodes; // Num of nodes in job
   char *cwd;
   char *job_name;
+  int power_ratio;
   char **node_hostname_list;    // node hostname list for each node in the job.
   double powerlimit;            // powerlimit for the job.
   pwr_policy_t *job_pwr_policy; // power policy for the job.
@@ -31,19 +32,22 @@ typedef struct {
  * @para pwr_policy enum value that denotes the current job
  * power policy, set at first by cluster_mgr.
  * @para powerlimit the powerlimit of the job, set by cluster_mgr.
+ * @para power_ratio the powerratio of the job, set by cluster_mgr.
  * @para node_index mapping between hostname and the flux broker rank.
  * @para h: flux handle required to make RPC.
  * @returns A pointer to the new job_mgr_t.
  **/
+//TODO: Remove power_ratio, setting power ratio for a whole job is wrong.
+// Currently just setting a single value.
 job_mgr_t *job_mgr_new(uint64_t jobId, char **nodelist, int num_of_nodes,
-                       char *cwd,char *job_name, POWER_POLICY_TYPE pwr_policy,
-                       double powerlimit, int *node_index, flux_t *h);
+                       char *cwd, char *job_name, POWER_POLICY_TYPE pwr_policy,
+                       double powerlimit, int power_ratio,  int *node_index, flux_t *h);
 /**
  * @brief Destructor for job_mgr.
  * @para h flux handle.
  * @para job_mgr_t **job: the job object that is getting destoyed.
  **/
-void job_mgr_destroy(flux_t *h,job_mgr_t **job);
+void job_mgr_destroy(flux_t *h, job_mgr_t **job);
 
 /**
  * @brief This method update the @para job_mgr with the given @para

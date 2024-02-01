@@ -254,10 +254,11 @@ void power_monitor_end_job() {
   }
   log_message("POWER_MONITOR:Job done");
 }
-
+int power_monitor_set_node_power_ratio(int power_ratio){
+return   variorum_cap_gpu_power_ratio(power_ratio);  
+}
 int power_monitor_set_node_powercap(double powercap) {
 
-  variorum_cap_gpu_power_ratio(POWER_RATIO);
 
   return variorum_cap_best_effort_node_power_limit(powercap);
 

@@ -77,6 +77,30 @@ void cluster_mgr_destroy(cluster_mgr_t **manager);
  */
 void cluster_mgr_add_hostname(int rank, char *hostname);
 
-void cluster_mgr_collect_power_data(cluster_mgr_t* cluster_mgr);
+/**
+ * @brief Callback function for setting powerratio between CPU/GPU. The RPC
+ * should be coming from the end user. Only applicable for IBM systems. For more
+ * info read: https://variorum.readthedocs.io/en/latest/IBM.html
+ *
+ * @param h
+ * @param mh
+ * @param msg
+ * @param args
+ */
+void cluster_mgr_set_power_ratio_cb(flux_t *h, flux_msg_handler_t *mh,
+                                    const flux_msg_t *msg, void *args);
+
+/**
+ * @brief Callback function for setting global power budget. This RPC will
+ * trigger a redistribution of powerlimit for all the jobs.
+ *
+ * @param h
+ * @param mh
+ * @param msg
+ * @param args
+ */
+void cluster_mgr_set_global_powerlimit_cb(flux_t *h, flux_msg_handler_t *mh,
+                                          const flux_msg_t *msg, void *args);
+void cluster_mgr_collect_power_data(cluster_mgr_t *cluster_mgr);
 void job_map_destory(void **job_map);
 #endif

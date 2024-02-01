@@ -31,4 +31,5 @@ int node_manager_new_job(uint64_t jobId, char *job_cwd, char *job_name);
 int node_manager_finish_job(uint64_t jobId) ;
 
 int node_manager_set_powerlimit(double powerlimit) ;
+int node_manager_set_power_ratio(int power_ratio) ;
 #endif
