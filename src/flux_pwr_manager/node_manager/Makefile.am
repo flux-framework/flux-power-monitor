@@ -8,6 +8,7 @@ libnode_manager_la_SOURCES = \
     node_manager.c \
 		node_util.c \
     power_monitor.c\
+		node_job_info.c \
 		fft_predictor.c
 
 libnode_manager_la_CPPFLAGS = \

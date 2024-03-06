@@ -6,26 +6,53 @@
 #include "node_manager/node_manager.h"
 #include "power_policies/uniform_pwr_policy.h"
 #include "pwr_info.h"
+#include "stdbool.h"
 #include "util.h"
-
+bool device_info_fetched;
+job_mgr_t *job_self_ref = NULL;
+size_t total_number_gpus = 0;
+size_t total_number_cpus = 0;
 int update_node_powerlimit_rpc(job_mgr_t *job_mgr, flux_t *h,
                                double *power_data) {
   for (int i = 0; i < job_mgr->num_of_nodes; i++) {
-
     int local_rank = job_mgr->hostname_rank_mapping[i];
+    int power_offset = 0;
+    node_device_info_t *current_device = NULL;
+    for (int j = 0; j < job_mgr->num_of_nodes; j++) {
+      if (job_mgr->device_list[j].flux_rank == local_rank) {
+        current_device = &job_mgr->device_list[j];
+        break;
+      }
+      power_offset += job_mgr->device_list[j].num_of_gpus;
+    }
+    if (!current_device) {
+      log_error("Device Not found for the node %d", local_rank);
+      continue;
+    }
+    json_t *data =
+        node_device_info_to_json(current_device, &power_data[power_offset]);
+    if (!data) {
+      log_error("device parsing to json failed");
+    }
+
     if (local_rank == 0) {
-      node_manager_set_powerlimit(power_data[i]);
+      for (int k = 0; k < current_device->num_of_gpus; k++)
+        node_manager_set_powerlimit(power_data[power_offset],
+                                    current_device->device_id_gpus[k]);
     } else {
       if (flux_rpc_pack(h, "flux_pwr.nm-set_pl", local_rank,
-                        FLUX_RPC_NORESPONSE, "{s:f}", "pl",
-                        &power_data[i]) < 0) {
+                        FLUX_RPC_NORESPONSE, "{s:s}", "data", data) < 0) {
         log_error(
             "RPC_ERROR:Unable to send new powelimit to node index: %d and name",
             i, job_mgr->node_hostname_list[i]);
         return -1;
       }
     }
-    job_mgr->nodes_pwr_stats[i].powerlimit = power_data[i];
+
+    for (int k = 0; k < current_device->num_of_gpus; k++)
+      job_mgr->device_pwr_stats[k + power_offset].powerlimit =
+          power_data[k + power_offset];
+    json_decref(data);
   }
   return 0;
 }
@@ -38,41 +65,66 @@ int send_new_job_rpc(flux_t *h, job_mgr_t *job_mgr) {
     errnos = -1;
     log_error("NULL FLUX HANDLE");
   }
-  double *power_data = calloc(job_mgr->num_of_nodes, sizeof(double));
+  double *power_data = calloc(job_mgr->num_of_gpus, sizeof(double));
   if (!power_data) {
     errnos = -1;
     goto cleanup;
   }
 
   job_mgr->job_pwr_policy->get_power_dist(
-      job_mgr->num_of_nodes, job_mgr->nodes_pwr_stats, job_mgr->powerlimit,
+      job_mgr->num_of_gpus, job_mgr->device_pwr_stats, job_mgr->powerlimit,
       job_mgr->powerlimit, power_data);
   for (int i = 0; i < job_mgr->num_of_nodes; i++) {
-    job_mgr->nodes_pwr_stats[i].powerlimit = power_data[i];
     int local_rank = job_mgr->hostname_rank_mapping[i];
+    int power_offset = 0;
+    node_device_info_t *current_device = NULL;
+    for (int j = 0; j < job_mgr->num_of_nodes; j++) {
+      if (job_mgr->device_list[j].flux_rank == local_rank) {
+        current_device = &job_mgr->device_list[j];
+        break;
+      }
+      power_offset += job_mgr->device_list[j].num_of_gpus;
+    }
+    if (!current_device) {
+      log_error("Device Not found for the node %d", local_rank);
+      continue;
+    }
     log_message("local rank %d", local_rank);
     if (local_rank == 0) {
-      log_message("RANK 0 power ratio setting %d", job_mgr->power_ratio);
-      node_manager_new_job(job_mgr->jobId, job_mgr->cwd, job_mgr->job_name);
-      if ((node_manager_set_powerlimit(power_data[i]) < 0) ||
-          (node_manager_set_power_ratio(job_mgr->power_ratio) < 0))
-        log_error("ERROR in setting rank 0 node power settings");
+
+      node_manager_new_job(job_mgr->jobId, job_mgr->cwd, job_mgr->job_name,
+                           current_device);
+      for (int k = power_offset; k < power_offset + current_device->num_of_gpus;
+           k++) {
+        if (node_manager_set_powerlimit(
+                power_data[i],
+                current_device->device_id_gpus[k - power_offset]) < 0)
+          log_error("ERROR in setting rank 0 node power settings");
+      }
 
     } else {
+
       log_message("checking  sending RPC to rank %d job_mgr "
                   "jobId %ld cwd %s name %s power %f",
                   local_rank, job_mgr->jobId, job_mgr->cwd, job_mgr->job_name,
                   power_data[i]);
+      json_t *current_device_json =
+          node_device_info_to_json(current_device, &power_data[power_offset]);
+      if (!current_device_json) {
+        log_error("Creation of node_device_info_json failed");
+        json_decref(current_device_json);
+        continue;
+      }
       flux_future_t *f = flux_rpc_pack(
           h, "pwr_mgr.nm-new_job", local_rank, FLUX_RPC_NORESPONSE,
-          "{s:I s:s s:s s:f s:i}", "jobid", job_mgr->jobId, "cwd", job_mgr->cwd,
-          "name", job_mgr->job_name, "pl", power_data[i], "pr",
-          job_mgr->power_ratio);
+          "{s:I s:s s:s s:f s:i s:o}", "jobid", job_mgr->jobId, "cwd",
+          job_mgr->cwd, "name", job_mgr->job_name, "data", current_device_json);
       if (!f) {
+        json_decref(current_device_json);
         log_error("RPC_ERROR:new job notification failure");
-        errnos = -1;
-        goto cleanup;
+        continue;
       }
+      json_decref(current_device_json);
     }
   }
 cleanup:
@@ -100,7 +152,7 @@ int send_end_job_rpc(flux_t *h, job_mgr_t *job_mgr) {
 }
 job_mgr_t *job_mgr_new(uint64_t jobId, char **nodelist, int num_of_nodes,
                        char *cwd, char *job_name, POWER_POLICY_TYPE pwr_policy,
-                       double powerlimit, int power_ratio,
+                       double powerlimit, node_device_info_t *device_data,
                        int *node_indices_para, flux_t *h) {
   bool error = false;
   if (!nodelist || num_of_nodes == 0 || !cwd)
@@ -124,8 +176,7 @@ job_mgr_t *job_mgr_new(uint64_t jobId, char **nodelist, int num_of_nodes,
     }
   }
   job_mgr->num_of_nodes = num_of_nodes;
-  job_mgr->nodes_pwr_stats = calloc(job_mgr->num_of_nodes, sizeof(pwr_stats_t));
-  if (!job_mgr->nodes_pwr_stats) {
+  if (!job_mgr->device_pwr_stats) {
     error = true;
     goto cleanup;
   }
@@ -148,9 +199,22 @@ job_mgr_t *job_mgr_new(uint64_t jobId, char **nodelist, int num_of_nodes,
   }
   job_mgr->jobId = jobId;
   job_mgr->powerlimit = powerlimit;
-  job_mgr->power_ratio = power_ratio;
   job_mgr->cwd = strdup(cwd);
   job_mgr->job_name = strdup(job_name);
+  job_mgr->device_list = device_data;
+  job_mgr->num_of_gpus = device_data->num_of_gpus;
+  job_mgr->num_of_cpus = device_data->num_of_cores;
+  for (int i = 0; i < num_of_nodes; i++) {
+    total_number_gpus += device_data[i].num_of_gpus;
+    total_number_cpus += device_data[i].num_of_cores;
+    job_mgr->num_of_cpus += device_data->num_of_cores;
+    job_mgr->num_of_gpus += device_data->num_of_gpus;
+  }
+
+  job_mgr->device_pwr_stats = calloc(job_mgr->num_of_gpus, sizeof(pwr_stats_t));
+  job_self_ref = job_mgr;
+  // Get device info for each node
+
   send_new_job_rpc(h, job_mgr);
 cleanup:
   if (error && job_mgr) {
@@ -172,26 +236,25 @@ cleanup:
   }
   return job_mgr;
 }
-
 int job_mgr_update_powerlimit(job_mgr_t *job_mgr, flux_t *h,
                               double new_powerlimit) {
 
-  int errnos;
-  errnos = 0;
+  int errnos = 0;
   if (!job_mgr || new_powerlimit == 0)
     errnos = -1;
   double current_powerlimit = 0;
   job_mgr->powerlimit = new_powerlimit;
-  for (int i = 0; i < job_mgr->num_of_nodes; i++)
-    current_powerlimit += job_mgr->nodes_pwr_stats[i].powerlimit;
-  double *power_data = calloc(job_mgr->num_of_nodes, sizeof(double));
+  for (int i = 0; i < job_mgr->num_of_gpus; i++)
+    current_powerlimit += job_mgr->device_pwr_stats[i].powerlimit;
+  double *power_data = calloc(job_mgr->num_of_gpus, sizeof(double));
+
   if (!power_data) {
     errnos = -1;
     goto cleanup;
   }
 
   job_mgr->job_pwr_policy->get_power_dist(
-      job_mgr->num_of_nodes, job_mgr->nodes_pwr_stats, new_powerlimit,
+      job_mgr->num_of_gpus, job_mgr->device_pwr_stats, new_powerlimit,
       current_powerlimit, power_data);
   if (update_node_powerlimit_rpc(job_mgr, h, power_data) < 0) {
     log_error("Unable to update powerlimit");
@@ -219,12 +282,16 @@ void job_mgr_destroy(flux_t *h, job_mgr_t **job) {
     }
     free(proper_job->node_hostname_list);
   }
-
+  if (proper_job->device_list)
+    for (int i = 0; i < proper_job->num_of_gpus; i++)
+      free(proper_job->device_list[i].hostname);
+  free(proper_job->device_list);
   retro_queue_buffer_destroy(proper_job->power_history);
-  free(proper_job->nodes_pwr_stats);
+  free(proper_job->device_pwr_stats);
   free(proper_job->hostname_rank_mapping);
   free(proper_job->job_name);
   free(proper_job->cwd);
   free(proper_job);
   *job = NULL; // Set the pointer to NULL to avoid dangling references.
+  job_self_ref = NULL;
 }

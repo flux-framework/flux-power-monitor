@@ -1,40 +1,49 @@
 #if HAVE_CONFIG_H
 #include "config.h"
 #endif
+#include "retro_queue_buffer.h"
 #include "constants.h"
+#include "fft_predictor.h"
 #include "flux_pwr_logging.h"
 #include "node_data.h" // Assuming this includes retro_queue_buffer_t and node_power
 #include "node_util.h"
-#include <fftw3.h>
+#include "system_config.h"
 #include <pthread.h>
 #include <string.h>
-
 // Global variables
 pthread_t fft_thread;
 bool fft_thread_running = false;
 bool job_active = false;
 pthread_cond_t fft_cond = PTHREAD_COND_INITIALIZER;
 pthread_mutex_t fft_mutex = PTHREAD_MUTEX_INITIALIZER;
-fftw_complex *fft_input;
+fft_input_devices *fft_input; // Right now, do FFT on all devices in a node.
+fft_result *fft_result_array;
 node_power *current_element_fft;
 int num_copied = 0;
 int global_copied = 0;
 size_t fft_data_size = 0;
 
 void copy_node_power_to_fftw_callback(void *item, void *user_data) {
-  fftw_complex *dest_buffer = (fftw_complex *)user_data;
 
   node_power *np = (node_power *)item;
+  fft_input_devices *fft_devices_data = (fft_input_devices *)user_data;
+
   if (np != NULL && global_copied < THREE_MINUTES) {
-    dest_buffer[global_copied][0] = np->node_power; // Real part
-    dest_buffer[global_copied][1] = 0.0;            // Imaginary part
+    for (int i = 0; i < NUM_OF_GPUS; i++) {
+      fft_devices_data->gpus[i][0] = np->gpu_power[i];
+      fft_devices_data->gpus[i][1] = 1;
+    }
+    for (int i = 0; i < NUM_OF_CPUS; i++) {
+      fft_devices_data->cpus[i][0] = np->cpu_power[i];
+      fft_devices_data->gpus[i][1] = 0;
+    }
     global_copied++;
     num_copied++;
   }
 }
 
 // FFT computation function
-void perform_fft(fftw_complex *data, size_t data_size) {
+void perform_fft(fftw_complex *data, size_t data_size, double *result) {
   fftw_complex *out =
       (fftw_complex *)fftw_malloc(sizeof(fftw_complex) * data_size);
   fftw_plan p =
@@ -66,6 +75,7 @@ void perform_fft(fftw_complex *data, size_t data_size) {
   double second_dominant_frequency =
       ((double)second_idx) * ((SAMPLING_RATE * 1.0) / data_size);
   double second_Titer = 1 / second_dominant_frequency;
+  *result = Titer;
   log_message("Dominant Frequency: %f Hz, Titer: %f seconds\n",
               dominant_frequency, Titer);
 
@@ -91,7 +101,8 @@ void *fft_thread_func(void *args) {
     clock_gettime(CLOCK_REALTIME, &wait_time);
     wait_time.tv_sec += 30;
 
-    // Check if there's new data to process every 30 seconds
+    // Check if there's new data to process every 30 seconds. And try to find
+    // period just for three minutes, if not we fail in finding the period.
     while (job_active && fft_data_size < THREE_MINUTES) {
       wait_result = pthread_cond_timedwait(&fft_cond, &fft_mutex, &wait_time);
       if (wait_result == ETIMEDOUT) {
@@ -111,11 +122,16 @@ void *fft_thread_func(void *args) {
         double elapsed;
 
         clock_gettime(CLOCK_THREAD_CPUTIME_ID, &start);
-        perform_fft(fft_input, fft_data_size);
+        for (int i = 0; i < NUM_OF_GPUS; i++) {
+          fftw_complex *fft_input_device = &fft_input->gpus[i];
+          double result = 0;
+          perform_fft(fft_input_device, fft_data_size, &result);
+          retro_queue_buffer_push(&fft_result_array->gpus_period[i], &result);
+        }
         clock_gettime(CLOCK_THREAD_CPUTIME_ID, &end);
-
         elapsed = end.tv_sec - start.tv_sec;
         elapsed += (end.tv_nsec - start.tv_nsec) / 1000000000.0;
+        fft_result_array->time_taken = elapsed;
 
         log_message("Time taken by FFT: %f seconds\n", elapsed);
         // Set up the next time to check the buffer (in another 30 seconds)
@@ -139,9 +155,11 @@ void *fft_thread_func(void *args) {
 void fft_predictor_init() {
   pthread_mutex_lock(&fft_mutex);
   fft_thread_running = true;
-  fft_input = (fftw_complex *)fftw_malloc(sizeof(fftw_complex) * THREE_MINUTES);
-  memset(fft_input, 0,
-         sizeof(fftw_complex) * THREE_MINUTES); // Initialize with zeros
+  fft_result_array = malloc(sizeof(fft_result));
+  memset(fft_result_array, 0, sizeof(fft_result));
+  // fft_input = malloc(NUM_OF_DEVICES * sizeof(fftw_complex *));
+  fft_input = fftw_malloc(sizeof(fft_input_devices) * THREE_MINUTES);
+  memset(fft_input, 0, sizeof(fft_input_devices) * THREE_MINUTES);
   pthread_create(&fft_thread, NULL, fft_thread_func, NULL);
   pthread_mutex_unlock(&fft_mutex);
 }
@@ -155,7 +173,7 @@ void fft_predictor_destructor() {
   pthread_join(fft_thread, NULL); // Wait for the thread to finish
 
   if (fft_input) {
-    fftw_free(fft_input);
+    free(fft_input);
   }
 }
 
@@ -185,8 +203,7 @@ void fft_predictor_finish_job() {
   num_copied = 0;
   fft_data_size = 0;
   // Optionally perform any final FFT computation or cleanup here
-  memset(fft_input, 0,
-         sizeof(fftw_complex) * THREE_MINUTES); // Reset the buffer
+  memset(fft_input, 0, sizeof(fft_input_devices) * THREE_MINUTES);
   pthread_mutex_unlock(&fft_mutex);
   log_message("FFT_PREDICTOR: job finsihed");
 }

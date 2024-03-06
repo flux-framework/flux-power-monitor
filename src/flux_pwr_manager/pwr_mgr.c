@@ -94,11 +94,11 @@ int find_rank_hostname(char *hostname) {
 
 static void timer_handler(flux_reactor_t *r, flux_watcher_t *w, int revents,
                           void *arg) {
+  // Every time, get data into each job. This require calling cluster_mgr to collect data from
+  // each job and in turn each job collect data for each node.
+  
   if (rank == 0) {
-    static int initialized = 0;
-
-    int ret;
-    char *s = malloc(1500);
+  
   }
 }
 void flux_pwr_manager_get_hostname_cb(flux_t *h, flux_msg_handler_t *mh,
@@ -169,7 +169,7 @@ void handle_jobtap_nodelist_rpc(flux_future_t *f, void *args) {
   char *job_cwd;
   char *job_name;
 
-  if (flux_rpc_get_unpack(f, "{s:{s:I s:s s:s,s:s}}", "job", "id", &id,
+  if (flux_rpc_get_unpack(f, "{s:{s:I s:s s:s s:s}}", "job", "id", &id,
                           "nodelist", &node_string, "cwd", &job_cwd, "name",
                           &job_name) < 0) {
     log_error("RPC_INFO:Unable to parse RPC data %s",

@@ -6,22 +6,26 @@
 #include "pwr_info.h"
 #include "pwr_stats.h"
 #include "retro_queue_buffer.h"
+#include "parse_util.h"
 #include <flux/core.h>
 #include <unistd.h>
-// Responsible for dealing with all things releated to job power manager
+
 typedef struct {
   uint64_t jobId;
   int num_of_nodes; // Num of nodes in job
   char *cwd;
   char *job_name;
-  int power_ratio;
   char **node_hostname_list;    // node hostname list for each node in the job.
   double powerlimit;            // powerlimit for the job.
   pwr_policy_t *job_pwr_policy; // power policy for the job.
   int *hostname_rank_mapping;   // ranking between node and rank.
   retro_queue_buffer_t *power_history; // Updated by callback
   pwr_info pwr_data;                   // Updated by callback
-  pwr_stats_t *nodes_pwr_stats;        // Updated by callback
+  pwr_stats_t *device_pwr_stats;        // Updated by callback
+  node_device_info_t *device_list; //list of devices associated with this job
+  int num_of_gpus;
+  int num_of_cpus;
+
 } job_mgr_t;
 /**
  * @brief A constructor method that creates a new job_mgr.
@@ -32,7 +36,7 @@ typedef struct {
  * @para pwr_policy enum value that denotes the current job
  * power policy, set at first by cluster_mgr.
  * @para powerlimit the powerlimit of the job, set by cluster_mgr.
- * @para power_ratio the powerratio of the job, set by cluster_mgr.
+ * @para device_data holds the device information about the job.
  * @para node_index mapping between hostname and the flux broker rank.
  * @para h: flux handle required to make RPC.
  * @returns A pointer to the new job_mgr_t.
@@ -41,7 +45,7 @@ typedef struct {
 // Currently just setting a single value.
 job_mgr_t *job_mgr_new(uint64_t jobId, char **nodelist, int num_of_nodes,
                        char *cwd, char *job_name, POWER_POLICY_TYPE pwr_policy,
-                       double powerlimit, int power_ratio,  int *node_index, flux_t *h);
+                       double powerlimit,node_device_info_t *device_data,  int *node_index, flux_t *h);
 /**
  * @brief Destructor for job_mgr.
  * @para h flux handle.

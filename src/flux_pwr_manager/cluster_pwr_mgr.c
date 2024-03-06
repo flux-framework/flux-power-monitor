@@ -5,16 +5,18 @@
 #include "constants.h"
 #include "flux_pwr_logging.h"
 #include "job_hash.h"
+#include "parse_util.h"
 #include "power_policies/uniform_pwr_policy.h"
+#include "system_config.h"
 #define MAX_HOSTNAME_SIZE 256
 flux_t *flux_handle;
 char **cluster_node_hostname_list;
 int nodes_in_cluster;
-cluster_mgr_t *self = NULL;
-int global_power_ratio = 100; // Right now power ratio is global. All power is
-                              // always distributed to GPUs.
-int current_nodes_utilized = 0;
-
+cluster_mgr_t *cluster_self_ref = NULL;
+// Assuming a homogenous cluster.
+size_t current_device_utilized = 0;
+size_t total_num_of_devices = 0;
+size_t current_nodes_utilized = 0;
 cluster_mgr_t *cluster_mgr_new(flux_t *h, double global_power_budget,
                                uint64_t cluster_size) {
   if (global_power_budget == 0 || cluster_size == 0)
@@ -41,51 +43,87 @@ cluster_mgr_t *cluster_mgr_new(flux_t *h, double global_power_budget,
   cluster_mgr->global_power_budget = global_power_budget;
   cluster_mgr->num_of_nodes = cluster_size;
   nodes_in_cluster = cluster_size;
-  self = cluster_mgr;
+  total_num_of_devices = cluster_size * NUM_OF_GPUS;
+  cluster_self_ref = cluster_mgr;
   flux_handle = h;
   return cluster_mgr;
 }
 // Uniform power distributed
-double redistribute_power(cluster_mgr_t *cluster_mgr, int num_of_nodes) {
+double redistribute_power(cluster_mgr_t *cluster_mgr, int num_of_devices) {
 
-  double new_per_node_powerlimit =
-      cluster_mgr->global_power_budget / (num_of_nodes);
+  double new_per_device_powerlimit =
+      cluster_mgr->global_power_budget / (num_of_devices);
 
   void *data = zhashx_first(cluster_mgr->job_hash_table);
 
   while (data != NULL) {
     job_mgr_t *job_mgr_next = (job_mgr_t *)data;
     double new_job_powelimit =
-        new_per_node_powerlimit * job_mgr_next->num_of_nodes;
+        new_per_device_powerlimit * job_mgr_next->num_of_gpus;
 
     job_mgr_update_powerlimit(job_mgr_next, flux_handle, new_job_powelimit);
 
     void *data = zhashx_next(cluster_mgr->job_hash_table);
   }
-  return new_per_node_powerlimit;
+  return new_per_device_powerlimit;
+}
+
+// Get device info for each job in the node.
+// This is a synchronous call
+int get_new_job_device_info(flux_t *h, uint64_t job_id,
+                            node_device_info_t *node_data) {
+  if (job_id == 0 || h == NULL)
+    return -1;
+  flux_future_t *f;
+  if (!(f = flux_rpc_pack(h, "job-info.lookup", FLUX_NODEID_ANY, 0,
+                          "{s:I s:s s:i}", "id", job_id, "key", "R", "flags",
+                          0))) {
+    log_error("ROC_ERROR:Unable to send RPC to get device info for the job %s",
+              flux_future_error_string(f));
+    flux_future_destroy(f);
+  }
+
+  json_t *json_r;
+  int version;
+  if (flux_rpc_get_unpack(f, "{s:o}", "R", &json_r) < 0) {
+    log_error("RPC_INFO:Unable to parse RPC data %s",
+              flux_future_error_string(f));
+    flux_future_destroy(f);
+    return -1;
+  }
+  int num_of_nodes;
+
+  if (cluster_self_ref)
+    update_device_info_from_json(json_r, &node_data, &num_of_nodes);
+  else
+    log_error("cluster_self_ref of job_pwr_mgr does not exist when parsing device info");
+  flux_future_destroy(f);
+
+  return 0;
 }
 double get_new_job_powerlimit(cluster_mgr_t *cluster_mgr,
-                              double num_of_requested_nodes_count) {
+                              double num_of_requested_nodes_count,
+                              node_device_info_t *node_data) {
 
-  int current_nodes = 0;
   double excess_power =
       (cluster_mgr->global_power_budget - cluster_mgr->current_power_usage);
-
-  double theortical_power_per_node =
-      excess_power / num_of_requested_nodes_count;
+  int num_of_requested_devices = 0;
+  for (int i = 0; i < num_of_requested_nodes_count; i++)
+    num_of_requested_devices += node_data[i].num_of_gpus;
+  double theortical_power_per_device = excess_power / num_of_requested_devices;
 
   double powerlimit_job = 0;
   // This is the case when power is access or just at max
   //
-  if (theortical_power_per_node >= MAX_NODE_PWR) {
-    powerlimit_job = MAX_NODE_PWR * num_of_requested_nodes_count;
+  if (theortical_power_per_device >= MAX_GPU_POWER) {
+    powerlimit_job = MAX_GPU_POWER * num_of_requested_devices;
   }
   // Not sufficient power for each node, each job has to suffer now.
   // Each job is getting total_pow/total_num_of_nodes.
-  else if (theortical_power_per_node < MAX_NODE_PWR) {
-    double new_per_node_powerlimit = redistribute_power(
-        cluster_mgr, current_nodes_utilized + num_of_requested_nodes_count);
-    powerlimit_job = new_per_node_powerlimit * num_of_requested_nodes_count;
+  else if (theortical_power_per_device < MAX_GPU_POWER) {
+    double new_per_device_powerlimit = redistribute_power(
+        cluster_mgr, current_device_utilized + num_of_requested_devices);
+    powerlimit_job = new_per_device_powerlimit * num_of_requested_devices;
   }
   cluster_mgr->current_power_usage += powerlimit_job;
   return powerlimit_job;
@@ -119,10 +157,16 @@ int cluster_mgr_add_new_job(cluster_mgr_t *cluster_mgr, uint64_t jobId,
       }
     }
   }
-  double job_pl = get_new_job_powerlimit(cluster_mgr, requested_nodes_count);
+  node_device_info_t *node_data = NULL;
+  if (get_new_job_device_info(flux_handle, jobId, node_data) < 0) {
+    log_error("Device Found failed");
+    return -1;
+  }
+  double job_pl =
+      get_new_job_powerlimit(cluster_mgr, requested_nodes_count, node_data);
   map->job_pwr_manager =
       job_mgr_new(jobId, nodelist, requested_nodes_count, cwd, job_name,
-                  UNIFORM, job_pl, global_power_ratio, ranks, flux_handle);
+                  UNIFORM, job_pl, node_data, ranks, flux_handle);
   if (!map->job_pwr_manager)
     return -1;
   if (!cluster_mgr->job_hash_table)
@@ -130,6 +174,10 @@ int cluster_mgr_add_new_job(cluster_mgr_t *cluster_mgr, uint64_t jobId,
   log_message("Inserting data");
   zhashx_insert(cluster_mgr->job_hash_table, &map->jobId, (void *)map);
   current_nodes_utilized += requested_nodes_count;
+  int num_of_requested_devices = 0;
+  for (int i = 0; i < requested_nodes_count; i++)
+    num_of_requested_devices += node_data[i].num_of_gpus;
+  current_device_utilized += num_of_requested_devices;
   free(ranks);
   return 0;
 }
@@ -148,7 +196,7 @@ int cluster_mgr_remove_job(cluster_mgr_t *cluster_mgr, uint64_t jobId) {
         (uint64_t)zlistx_first(zhashx_keys(cluster_mgr->job_hash_table)));
     return -1;
   }
-
+  // TODO: Should we redistribute power when we remove a job ?
   current_nodes_utilized -= job_map->job_pwr_manager->num_of_nodes;
   log_message("cluster_mgr:remove job");
   zhashx_delete(cluster_mgr->job_hash_table, &job_map->jobId);
@@ -167,7 +215,7 @@ void cluster_mgr_destroy(cluster_mgr_t **manager) {
     free(cluster_node_hostname_list[i]);
   }
   free(cluster_node_hostname_list);
-  self = NULL;
+  cluster_self_ref = NULL;
   free(mgr);
   *manager = NULL; // Avoid dangling pointer
 }
@@ -196,8 +244,8 @@ void cluster_mgr_set_global_powerlimit_cb(flux_t *h, flux_msg_handler_t *mh,
   }
   if (powerlimit < 0)
     return;
-  self->global_power_budget = powerlimit;
-  redistribute_power(self, current_nodes_utilized);
+  cluster_self_ref->global_power_budget = powerlimit;
+  redistribute_power(cluster_self_ref, current_nodes_utilized);
 }
 void cluster_mgr_set_power_ratio_cb(flux_t *h, flux_msg_handler_t *mh,
                                     const flux_msg_t *msg, void *args) {
@@ -207,5 +255,5 @@ void cluster_mgr_set_power_ratio_cb(flux_t *h, flux_msg_handler_t *mh,
     log_error("RPC_ERROR:Unable to decode set poweratio RPC");
   }
   log_message("Setting Power Ratio of cluster to %d", powerratio);
-  global_power_ratio = powerratio;
+  // global_power_ratio = powerratio;
 }

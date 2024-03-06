@@ -15,4 +15,5 @@ void response_power_data_destroy(response_power_data *data);
 double do_agg(retro_queue_buffer_t *buffer,double current_power_value,double old_power_value);
 int getNodeList(char *nodeData, char ***hostList, int *size);
 uint64_t get_device_id(char* name);
+
 #endif

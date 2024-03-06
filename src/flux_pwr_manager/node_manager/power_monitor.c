@@ -218,7 +218,6 @@ void power_monitor_start_job(uint64_t jobId, char *job_cwd, char *job_name) {
     pthread_mutex_lock(&node_power_data->node_power_time->mutex);
     current_element_monitor =
         (node_power *)zlist_tail(node_power_data->node_power_time->list);
-    log_message("current message %ld", current_element_monitor->timestamp);
     pthread_mutex_unlock(&node_power_data->node_power_time->mutex);
     pthread_mutex_unlock(&data_mutex);
 
@@ -257,12 +256,16 @@ void power_monitor_end_job() {
 int power_monitor_set_node_power_ratio(int power_ratio){
 return   variorum_cap_gpu_power_ratio(power_ratio);  
 }
-int power_monitor_set_node_powercap(double powercap) {
+int power_monitor_set_node_powercap(double powercap,int gpu_id) {
 
 
-  return variorum_cap_best_effort_node_power_limit(powercap);
+    char command[256];
+    snprintf(command, sizeof(command), "sudo nvidia-smi -pl %f -i %d", powercap, gpu_id);
+
+    return system(command);
 
 }
+  // return variorum_cap_best_effort_node_power_limit(powercap);
 
 void destroy_pthread_component() {
 
