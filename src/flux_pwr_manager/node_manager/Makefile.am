@@ -4,11 +4,11 @@ AM_CPPFLAGS = -I$(top_srcdir)/src/common -I$(top_srcdir)/src/flux_pwr_manager $(
 noinst_LTLIBRARIES = libnode_manager.la
 
 libnode_manager_la_SOURCES = \
-    node_data.h \
     node_manager.c \
 		node_util.c \
     power_monitor.c\
 		node_job_info.c \
+		tracker.c\
 		fft_predictor.c
 
 libnode_manager_la_CPPFLAGS = \

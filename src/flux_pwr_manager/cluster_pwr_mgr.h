@@ -102,5 +102,5 @@ void cluster_mgr_set_power_ratio_cb(flux_t *h, flux_msg_handler_t *mh,
 void cluster_mgr_set_global_powerlimit_cb(flux_t *h, flux_msg_handler_t *mh,
                                           const flux_msg_t *msg, void *args);
 void cluster_mgr_collect_power_data(cluster_mgr_t *cluster_mgr);
-void job_map_destory(void **job_map);
+void job_map_destroy(void **job_map);
 #endif

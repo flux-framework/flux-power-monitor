@@ -1,7 +1,9 @@
+#include "system_config.h"
 #if HAVE_CONFIG_H
 #include "config.h"
 #endif
 #define _POSIX_C_SOURCE 200809L
+#include "node_job_info.h"
 #include "node_util.h"
 #include <jansson.h>
 #include <stdbool.h>
@@ -9,7 +11,50 @@
 #include <stdlib.h>
 #include <string.h>
 #define HOSTNAME_SIZE 256
+#define MAX_HEADER_SIZE 256
+char scratch_buffer[MAX_CSV_SIZE];
+// Function to dynamically construct the CSV header based on node_job_info
+void get_header(char **header, node_job_info *data) {
+  if (!data || !header)
+    return; // Validate input
 
+  // Base part of the CSV header
+  char base_header[] = "Timestamp (ms),Node Power (W),Socket 0 CPU Power "
+                       "(W),Socket 1 CPU Power (W),";
+  int base_length = strlen(base_header);
+
+  // Additional header for memory power
+  char mem_header[] = ",Socket 0 Mem Power (W),Socket 1 Mem Power (W)";
+  int mem_length = strlen(mem_header);
+
+  // Calculate the length of the dynamic part of the header for GPU powers
+  int dynamic_length = 0;
+  for (int i = 0; i < data->num_of_devices; ++i) {
+    dynamic_length += 24; // Length of ",Socket X GPU Power (W)"
+  }
+
+  // Allocate memory for the full header
+  *header = malloc(base_length + dynamic_length + mem_length +
+                   1); // +1 for null terminator
+  if (*header == NULL)
+    return; // Ensure memory was allocated
+
+  // Construct the header
+  strcpy(*header, base_header);
+  for (int i = 0; i < data->num_of_devices; ++i) {
+    char gpu_part[30]; // Buffer for GPU power part of the header
+    sprintf(gpu_part, "Socket %d GPU Power (W)", data->deviceId[i]);
+    strcat(*header, gpu_part);
+  }
+  strcat(*header, mem_header); // Append memory power information
+  strcat(*header, "\n");
+}
+
+void reset_buffer(char *buffer, size_t buffer_size) {
+  for (int i = 0; i < buffer_size; i++) {
+    memset(buffer, 0, buffer_size * MAX_CSV_SIZE);
+  }
+}
 node_power *parse_string(const char *input_str) {
 
   node_power *np = malloc(sizeof(node_power));
@@ -220,6 +265,30 @@ node_power *parse_string_v0(const char *input_str) {
 
   return np;
 }
+int write_device_specific_node_power_data(char *data,
+                                          node_power *full_node_data,
+                                          node_job_info *job_data) {
+  if (data == NULL || full_node_data == NULL || job_data == NULL)
+    return -1;
+  int marker = 0;
+  marker = snprintf(scratch_buffer, MAX_CSV_SIZE - 1, "%ld,%lf",
+                    full_node_data->timestamp, full_node_data->node_power);
+  for (int i = 0; i < NUM_OF_CPUS; i++) {
+    marker += snprintf(scratch_buffer + marker, MAX_CSV_SIZE - 1, ",%lf",
+                       full_node_data->cpu_power[i]);
+  }
+  for (int i = 0; i < job_data->num_of_devices; i++) {
+    marker += snprintf(scratch_buffer + marker, MAX_CSV_SIZE - 1, ",%lf",
+                       full_node_data->gpu_power[job_data->deviceId[i]]);
+  }
+  for (int i = 0; i < NUM_OF_MEMS; i++) {
+    marker += snprintf(scratch_buffer + marker, MAX_CSV_SIZE - 1, ",%lf",
+                       full_node_data->mem_power[i]);
+  }
+  marker += snprintf(scratch_buffer + marker, MAX_CSV_SIZE - 1, "\n");
+  strcat(data, scratch_buffer);
+  return 0;
+}
 
 // Function to allocate the global temporary buffer based on the circular
 // buffer's size
@@ -239,7 +308,8 @@ int allocate_global_buffer(char **buffer, size_t buffer_size) {
 int node_power_cmp(void *element, void *target) {
   node_power *element_power = (node_power *)element;
   node_power *target_power = (node_power *)target;
-
+  if (element_power == NULL || target_power == NULL)
+    printf("NULL VALUES");
   if (target_power->timestamp == element_power->timestamp)
     return true;
   return false;
@@ -298,14 +368,14 @@ void parse_idset_node(char *rankidset, int **rank_list, int *rank_list_size) {
       num_of_ids++;
     }
   } while ((token = strtok(NULL, ",")) != NULL);
-  *rank_list_size=num_of_ids;
+  *rank_list_size = num_of_ids;
   *rank_list = malloc(sizeof(int) * num_of_ids);
   for (int i = 0; i < num_of_ids; i++) {
     (*rank_list)[i] = rank[i];
   }
 }
 void update_device_info_from_json_node(json_t *json, node_job_info *job_info,
-                                  uint32_t rank) {
+                                       uint32_t rank) {
 
   json_t *execution;
   json_t *json_r_lite_array;

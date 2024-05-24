@@ -7,18 +7,22 @@
 flux_t *h;
 static int jobtap_cb(flux_plugin_t *p, const char *topic,
                      flux_plugin_arg_t *args, void *arg) {
-  int userid;
-  uint64_t id;
-  double t_submit;
+  size_t userid = 0;
+  uint64_t id = 0;
+  double t_submit = 0.0f;
 
-  if (flux_plugin_arg_unpack(args, FLUX_PLUGIN_ARG_IN, "{s:I s:f s:i}", "id",
+  if (flux_plugin_arg_unpack(args, FLUX_PLUGIN_ARG_IN, "{s:I s:f s:I}", "id",
                              &id, "t_submit", &t_submit, "userid", &userid) < 0)
     return -1;
-
-  // log_message("JOBTAP:Topic: %s User Id : %d, t_submit: %f and jobId %ld", topic,
-              // userid, t_submit, id);
+  if (userid == 0 || id == 0) {
+    log_error("Job Tap empty response");
+    return -1;
+  }
+  log_message("JobTap userid %ld jobId %ld",userid,id);
+  // log_message("JOBTAP:Topic: %s User Id : %d, t_submit: %f and jobId %ld",
+  // topic, userid, t_submit, id);
   if (flux_rpc_pack(h, "pwr_mgr.job_notify", FLUX_NODEID_ANY, 0,
-                    "{s:s s:I s:f s:i}", "topic", topic, "id", id, "t_submit",
+                    "{s:s s:I s:f s:I}", "topic", topic, "id", id, "t_submit",
                     t_submit, "userId", userid) < 0) {
     log_error("JOBTAP:Cannot send RPC at jobtap_cb module");
   }
@@ -26,9 +30,8 @@ static int jobtap_cb(flux_plugin_t *p, const char *topic,
 }
 static void destructor(void *args) {
   bool terminated = true;
-  if (flux_rpc_pack(h, "pwr_mgr.jobtap_destructor_notify",
-                    FLUX_NODEID_ANY, 0, "{s:b}", "terminated",
-                    terminated) < 0) {
+  if (flux_rpc_pack(h, "pwr_mgr.jobtap_destructor_notify", FLUX_NODEID_ANY, 0,
+                    "{s:b}", "terminated", terminated) < 0) {
     log_error("JOBTAP:Unable to send RPC for jobtap destructor");
   }
 }
@@ -43,10 +46,8 @@ int flux_plugin_init(flux_plugin_t *p) {
     return -1;
   }
 
-  if (
-      flux_plugin_add_handler(p, "job.inactive-add", jobtap_cb, NULL) < 0 ||
-      flux_plugin_add_handler(p, "job.state.run", jobtap_cb, NULL) < 0
-  )
+  if (flux_plugin_add_handler(p, "job.inactive-add", jobtap_cb, NULL) < 0 ||
+      flux_plugin_add_handler(p, "job.state.run", jobtap_cb, NULL) < 0)
     return -1;
 
   return 0;

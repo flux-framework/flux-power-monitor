@@ -4,14 +4,17 @@
 #include "constants.h"
 #include "flux_pwr_logging.h"
 #include "jansson.h"
+#include "job_hash.h"
 #include "node_data.h"
 #include "node_util.h"
 #include "power_monitor.h"
 #include "response_power_data.h"
 #include "retro_queue_buffer.h"
+#include "tracker.h"
 #include "util.h"
 #include "variorum.h"
 #include <czmq.h>
+#include <math.h>
 #include <stdint.h>
 #include <time.h>
 #include <unistd.h>
@@ -23,56 +26,27 @@ pthread_cond_t file_cond; // file is ready
 // Control flags
 bool terminate_thread = false; // Flag to signal thread termination
 bool write_to_file = false;    // Flag to control when to write to file
-bool job_running = false;      // Indicates whether a job is currently running
 bool global_file_write = true; // Global flag to enable/disable file writing
-node_power *current_element_monitor =
-    NULL; // Tracks the element from which to start copying
-int retro_queue_buffer_marker = -1; // Marker for circular buffer data
-char output_filename[MAX_FILENAME_SIZE] = "default_output.csv";
-FILE *current_file = NULL;
-pthread_t data_thread; // New thread for data collection
+pthread_t data_thread;         // New thread for data collection
+zhashx_t *power_job_data;      // To record current jobs running on this node.
+bool job_running = false;
+uint64_t shared_jobid = 0;
 
 //*****These two variable are always modified before file write thread is
 // called, so it should be thread safe.****
-char *global_temp_buffer = NULL;
-size_t global_temp_buffer_size = 0;
-
-void reset_temp_buffer(char *global_temp_buffer,
-                       size_t global_temp_buffer_size) {
-
-  memset(global_temp_buffer, 0, global_temp_buffer_size); // Reset the}
-}
-
-void free_global_buffer() {
-  free(global_temp_buffer);
-  global_temp_buffer = NULL;
-  global_temp_buffer_size = 0;
-}
-
 // Callback function for concatenating csv strings
-void concatenate_csv_callback(void *data, void *user_data) {
-  node_power *np = (node_power *)data;
-  char **temp_buffer = (char **)user_data;
-  // printf("timestamp during csv_callback %ld\n",np->timestamp);
-  // Concatenate the fixed-size string
-  strcat(*temp_buffer, np->csv_string);
-}
+typedef struct {
+  char *write_buffer[NUM_OF_GPUS];
+  int deviceId[NUM_OF_GPUS];
+  bool file_write;
+  size_t buffer_size;
+  pthread_mutex_t share_lock;
+  char jobname[MAX_FILENAME_SIZE];
+} shared_data;
 
-void update_temp_buffer(retro_queue_buffer_t *buffer, size_t start_index) {
-
-  if (!global_temp_buffer) {
-    fprintf(stderr, "Global buffer is not allocated\n");
-    return;
-  }
-  current_element_monitor = retro_queue_buffer_iterate_until_before_tail(
-      buffer, &node_power_cmp, current_element_monitor,
-      &concatenate_csv_callback, &global_temp_buffer);
-  // retro_queue_buffer_iterate_partial(buffer, concatenate_csv_callback,
-  //                                 &global_temp_buffer, start_index,
-  //                                 end_index);
-}
 void *add_data_to_buffer_thread(void *arg) {
   retro_queue_buffer_t *buffer = (retro_queue_buffer_t *)arg;
+  static size_t counter = 0;
   int error = 0;
   while (!terminate_thread) {
     struct timespec start, end, req, rem;
@@ -89,7 +63,7 @@ void *add_data_to_buffer_thread(void *arg) {
       goto calculate_sleep; // Jump to sleep calculation
     }
 
-    ret = variorum_get_node_power_json(&s);
+    ret = variorum_get_power_json(&s);
     if (ret < 0) {
       log_error("unable to get variorum data\n");
       free(s);
@@ -105,22 +79,40 @@ void *add_data_to_buffer_thread(void *arg) {
       error = -1;
       goto calculate_sleep; // Jump to sleep calculation
     }
-
+    bool write_flag_set = false;
     // The last value is the marker.
-    pthread_mutex_lock(&data_mutex);
-    if (retro_queue_buffer_marker == 0 && global_file_write) {
-      update_temp_buffer(
-          node_power_data->node_power_time,
-          retro_queue_buffer_get_max_size(node_power_data->node_power_time));
-      retro_queue_buffer_marker =
-          retro_queue_buffer_get_max_size(node_power_data->node_power_time) - 1;
+    if (global_file_write) {
+      power_tracker_t *data = zhashx_first(power_job_data);
+      while (data != NULL) {
+        if (data->value_written == BUFFER_SIZE) {
+
+          pthread_mutex_lock(&file_mutex);
+          data->write_flag = true;
+          write_flag_set = true;
+          memcpy(data->write_buffer, data->buffer,
+                 MAX_CSV_SIZE * data->buffer_size);
+          pthread_mutex_unlock(&file_mutex);
+          reset_buffer(data->buffer, data->buffer_size);
+        } else if (data->value_written < data->buffer_size) {
+          if (write_device_specific_node_power_data(data->buffer, p_data,
+                                                    data->job_info) < 0) {
+            log_error("Unable to write data in buffer");
+            continue;
+          }
+          data->value_written++;
+        }
+        data = zhashx_next(power_job_data);
+      }
+
       // Enable write to file.
       pthread_mutex_lock(&file_mutex);
-      write_to_file = true;
-      pthread_cond_signal(&file_cond);
+      if (write_flag_set) {
+        write_to_file = true;
+        pthread_cond_signal(&file_cond);
+      }
       pthread_mutex_unlock(&file_mutex);
     }
-    pthread_mutex_unlock(&data_mutex);
+    goto calculate_sleep;
   calculate_sleep:
     clock_gettime(CLOCK_MONOTONIC, &end);
     time_spent = (end.tv_sec - start.tv_sec) * 1000000000L +
@@ -132,16 +124,18 @@ void *add_data_to_buffer_thread(void *arg) {
     }
     req.tv_sec = time_to_sleep / 1000000000L;
     req.tv_nsec = time_to_sleep % 1000000000L;
-    nanosleep(&req, &rem);
+    int status = nanosleep(&req, &rem);
+    if (status != 0) {
+      log_error("Sleep failed");
+    }
     if (error == -1)
       continue;
     pthread_mutex_lock(&data_mutex);
     // Check if we should still insert data after potential long processing
     if (!terminate_thread && p_data) {
+      // log_message("inserti");
       retro_queue_buffer_push(node_power_data->node_power_time, p_data);
       // printf("entry time stamp %ld \n", p_data->timestamp);
-      if (retro_queue_buffer_marker > 0)
-        retro_queue_buffer_marker--;
     }
     pthread_mutex_unlock(&data_mutex);
   }
@@ -157,11 +151,9 @@ void write_header(FILE *file) {
   fputs(header, file);
 }
 
-void write_data_to_file() {
-
-  if (current_file != NULL && global_temp_buffer != NULL) {
-    fputs(global_temp_buffer, current_file);
-    reset_temp_buffer(global_temp_buffer, global_temp_buffer_size);
+void write_data_to_file(char *write_buffer, FILE *f) {
+  if (write_buffer != NULL) {
+    fputs(write_buffer, f);
   }
 }
 void *file_write_thread(void *arg) {
@@ -177,95 +169,109 @@ void *file_write_thread(void *arg) {
       pthread_mutex_unlock(&file_mutex);
       break;
     }
-    if (job_running) {
-      if (current_file == NULL) {
-        current_file = fopen(output_filename, "a");
-        if (current_file == NULL) {
-          log_message("POWER_MONITOR: ERROR IN opening file\n");
-          pthread_mutex_unlock(&file_mutex);
-          continue;
-        }
-        write_header(current_file);
+    power_tracker_t *p_data = zhashx_first(power_job_data);
+
+    while (p_data != NULL) {
+      log_message("writing");
+      if (!p_data->write_flag) {
+        p_data = zhashx_next(power_job_data);
+        continue;
       }
-      write_data_to_file();
-      write_to_file = false; // Make sure the next time, the cv is used.
-    } else if (!job_running) {
-      if (current_file == NULL) {
-        current_file = fopen(output_filename, "a");
-        if (current_file != NULL)
-          write_header(current_file);
+      FILE *f = fopen(p_data->filename, "a");
+      if (!f) {
+        p_data = zhashx_next(power_job_data);
+        continue;
       }
-      write_data_to_file();
-      fclose(current_file);
-      current_file = NULL;
-      write_to_file = false;
+      if (!p_data->header_writen) {
+        // write_header(f);
+        char *header;
+        get_header(&header, p_data->job_info);
+        fputs(header, f);
+        p_data->header_writen = true;
+        free(header);
+      }
+      write_data_to_file(p_data->write_buffer, f);
+      p_data->write_flag = false;
+      p_data->value_written = 0;
+
+      pthread_mutex_unlock(&file_mutex);
+      fclose(f);
+      reset_buffer(p_data->write_buffer, p_data->buffer_size);
+      if (!p_data->job_status) {
+        zhashx_delete(power_job_data, &p_data->job_info->jobId);
+        if (zhashx_size(power_job_data) == 0)
+          job_running = false;
+      }
+      p_data = zhashx_next(power_job_data);
     }
+    write_to_file = false;
+
     pthread_mutex_unlock(&file_mutex);
   }
-  if (current_file) {
-    fclose(current_file);
-    current_file = NULL;
-  }
+  // if (current_file) {
+  //   fclose(current_file);
+  //   current_file = NULL;
+  // }
   return NULL;
 }
 
-void power_monitor_start_job(uint64_t jobId, char *job_cwd, char *job_name) {
+void power_monitor_start_job(uint64_t jobId) {
   if (global_file_write) {
-    pthread_mutex_lock(&data_mutex);
-
-    retro_queue_buffer_marker =
-        retro_queue_buffer_get_max_size(node_power_data->node_power_time) - 1;
-    pthread_mutex_lock(&node_power_data->node_power_time->mutex);
-    current_element_monitor =
-        (node_power *)zlist_tail(node_power_data->node_power_time->list);
-    pthread_mutex_unlock(&node_power_data->node_power_time->mutex);
-    pthread_mutex_unlock(&data_mutex);
-
-    pthread_mutex_lock(&file_mutex);
-    // open file in the job current working directory
-    snprintf(output_filename, MAX_FILENAME_SIZE, "%s/%s_%lu_%s.powmon.dat",
-             job_cwd, job_name, jobId,
-             node_power_data->hostname); // Use actual hostname
-    job_running = true;
-    pthread_mutex_unlock(&file_mutex);
-  } else
-    retro_queue_buffer_marker = -1;
-  log_message("POWER_MONITOR:Job init");
+    node_job_info *job_data = zhashx_lookup(current_jobs, &jobId);
+    if (!job_data) {
+      log_error("Job not found in the current jobs hash");
+      return;
+    }
+    power_tracker_t *data = power_tracker_new(job_data);
+    // Dynamically allocated JobId.
+    uint64_t *key = malloc(sizeof(uint64_t));
+    *key = jobId;
+    log_message("PM:Insert");
+    if (zhashx_insert(power_job_data, key, (void *)data) < 0) {
+      log_error("unable to insert data to power_job_data hash");
+      return;
+    }
+  }
 }
 
-void power_monitor_end_job() {
+void power_monitor_end_job(uint64_t jobId) {
 
   if (global_file_write) {
-    // Serialize access to buffer parameters
-    pthread_mutex_lock(&data_mutex);
-    update_temp_buffer(
-        node_power_data->node_power_time,
-        retro_queue_buffer_get_max_size(node_power_data->node_power_time));
-    retro_queue_buffer_marker = -1;
-    current_element_monitor = NULL;
-    pthread_mutex_unlock(&data_mutex);
-    // Serialize access to file
+    power_tracker_t *data = zhashx_lookup(power_job_data, &jobId);
+    if (!data) {
+      log_error("data not found for the jobId %ld", jobId);
+      pthread_mutex_unlock(&file_mutex);
+      return;
+    }
     pthread_mutex_lock(&file_mutex);
+    data->write_flag = true;
+    data->job_status = false;
     write_to_file = true;
-    job_running = false;
+    memcpy(data->write_buffer, data->buffer, MAX_CSV_SIZE * data->buffer_size);
     pthread_cond_signal(&file_cond);
+    // Wait for file write to be complete
+
     pthread_mutex_unlock(&file_mutex);
   }
   log_message("POWER_MONITOR:Job done");
 }
-int power_monitor_set_node_power_ratio(int power_ratio){
-return   variorum_cap_gpu_power_ratio(power_ratio);  
+int power_monitor_set_node_power_ratio(int power_ratio) {
+  return variorum_cap_gpu_power_ratio(power_ratio);
 }
-int power_monitor_set_node_powercap(double powercap,int gpu_id) {
+int power_monitor_set_node_powercap(double powercap, int gpu_id) {
 
+  char command[256];
+  // snprintf(command, sizeof(command), "sudo nvidia-smi -pl %f -i %d",
+  // powercap, gpu_id);
+  int powercap_int = (int)round(powercap);
+  log_message("powercapping GPU ID: %d with value d", gpu_id, powercap);
+  snprintf(command, sizeof(command),
+           "sudo /admin/scripts/nv_powercap -p  %d -i %d", powercap_int,
+           gpu_id);
 
-    char command[256];
-    snprintf(command, sizeof(command), "sudo nvidia-smi -pl %f -i %d", powercap, gpu_id);
-
-    return system(command);
-
+  return system(command);
 }
-  // return variorum_cap_best_effort_node_power_limit(powercap);
+// return variorum_cap_best_effort_node_power_limit(powercap);
 
 void destroy_pthread_component() {
 
@@ -279,7 +285,7 @@ void destroy_pthread_component() {
 void power_monitor_init(size_t buffer_size) {
   int ret; // Variable to store return values for error checking
   global_file_write = true;
-  global_temp_buffer_size = buffer_size;
+
   // Create data collection thread
   if ((ret = pthread_create(&data_thread, NULL, add_data_to_buffer_thread,
                             node_power_data->node_power_time)) != 0) {
@@ -288,13 +294,26 @@ void power_monitor_init(size_t buffer_size) {
     return;
   }
   if (global_file_write) {
+
+    power_job_data = malloc(NUM_OF_GPUS * sizeof(power_tracker_t *));
+    if (power_job_data == NULL) {
+      log_error("memory allocation failed for file write");
+      // Disable file write;
+      global_file_write = false;
+      return;
+    }
+    power_job_data = job_hash_create();
+    if (power_job_data == NULL) {
+      global_file_write = false;
+      return;
+    }
+    zhashx_set_destructor(power_job_data, power_tracker_destroy);
     // Assuming allocate_global_buffer returns an int for success (0) or failure
     // (-1)
     if ((ret = pthread_mutex_init(&data_mutex, NULL)) != 0) {
       log_error("data Mutex init failed: %s", strerror(ret));
       return;
     }
-    ret = allocate_global_buffer(&global_temp_buffer, global_temp_buffer_size);
     if (ret != 0) {
       log_error("Failed to allocate global buffer");
       return;
@@ -333,7 +352,10 @@ void power_monitor_init(size_t buffer_size) {
 
 void power_monitor_destructor() {
   if (global_file_write) {
-    free_global_buffer();
+    if (power_job_data) {
+      zhashx_destroy(&power_job_data);
+    }
+    free(power_job_data);
     destroy_pthread_component();
   }
 }

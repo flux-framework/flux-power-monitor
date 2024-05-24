@@ -45,11 +45,12 @@ int node_manager_finish_job(uint64_t jobId);
 /**
  * @brief This method set the powerlimit for the specified jobid.
  *
- * @param powerlimit Is the powerlimit.
  * @param jobId is the jobId of the job.
+ * @param powerlimit Is the powerlimit.
+ * @param deviceId device whose power is capped.
  * @return
  */
-int node_manager_set_powerlimit(double powerlimit, int deviceId);
+int node_manager_set_powerlimit(uint64_t jobid,double powerlimit, int deviceId);
 /**
  * @brief
  *
@@ -65,5 +66,7 @@ int node_manager_set_power_ratio(int power_ratio);
  *
  * @return
  */
-int node_manager_power_management();
+void node_manager_manage_power();
+void node_manager_print_fft_result(void);
+
 #endif

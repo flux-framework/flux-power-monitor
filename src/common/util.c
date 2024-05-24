@@ -1,5 +1,5 @@
-#include "retro_queue_buffer.h"
 #include "response_power_data.h"
+#include "retro_queue_buffer.h"
 #if HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -25,7 +25,15 @@ double do_agg(retro_queue_buffer_t *buffer, double current_power_value,
   old_power_value /= retro_queue_buffer_get_current_size(buffer);
   return old_power_value;
 }
-
+double do_average(retro_queue_buffer_t *buffer) {
+  double *data = zlist_first(buffer->list);
+  double sum = 0.;
+  while (data) {
+    sum += *data;
+    data = zlist_next(buffer->list);
+  }
+  return sum / buffer->current_size;
+}
 int parse_json(char *s, response_power_data *data) {
   if (data == NULL)
     return -1;
@@ -152,6 +160,7 @@ response_power_data *get_agg_power_data(retro_queue_buffer_t *buffer,
 int getNodeList(char *nodeData, char ***hostList, int *size) {
   char *hostname;
   char *ranges;
+  printf("%s \n", nodeData);
   // If nodeData doesn't contain '[', it's a single node
   if (strchr(nodeData, '[') == NULL) {
     *hostList = realloc(*hostList, (*size + 1) * sizeof(char *));

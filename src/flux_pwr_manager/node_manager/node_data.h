@@ -13,13 +13,13 @@ typedef struct {
   int num_of_gpu;
   uint64_t timestamp;
 } node_power;
+
 typedef struct {
   retro_queue_buffer_t *node_power_time; // Stores the power data of the node in
                                          // the form of node_power
   char *hostname;                        // hostname
   double power_limit;
   POWER_POLICY_TYPE power_policy;
-  uint64_t jobId; // -1 in case of no job;
   bool file_enable;
   bool write_data_to_file;
 } node_data;

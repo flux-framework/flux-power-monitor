@@ -94,11 +94,14 @@ int find_rank_hostname(char *hostname) {
 
 static void timer_handler(flux_reactor_t *r, flux_watcher_t *w, int revents,
                           void *arg) {
-  // Every time, get data into each job. This require calling cluster_mgr to collect data from
-  // each job and in turn each job collect data for each node.
-  
-  if (rank == 0) {
-  
+  // Every time, get data into each job. This require calling cluster_mgr to
+  // collect data from each job and in turn each job collect data for each node.
+
+  // node_manager_print_fft_result();
+  int flag=1;
+  if(flag==1){
+    log_message("setting powercap for each node");
+  node_manager_manage_power();
   }
 }
 void flux_pwr_manager_get_hostname_cb(flux_t *h, flux_msg_handler_t *mh,
@@ -177,8 +180,10 @@ void handle_jobtap_nodelist_rpc(flux_future_t *f, void *args) {
     flux_future_destroy(f);
     return;
   }
+  log_message("nodelist %s cwd %s name %s", node_string, job_cwd, job_name);
   int ret = getNodeList((char *)node_string, &job_hostname_list, &size);
   if (ret < 0) {
+    log_message("getting nodelist failed");
     goto error;
   }
   if (strcmp(topic, "job.state.run") == 0) {
@@ -202,42 +207,30 @@ void flux_pwr_manager_job_notification_rpc_cb(flux_t *h, flux_msg_handler_t *mh,
                                               const flux_msg_t *msg,
                                               void *args) {
   flux_future_t *f;
-  char *topic_ref;
-  char *topic;
-  uint64_t id;
-  int userId;
-  double t_submit;
+  char *topic_ref = NULL;
+  char *topic = NULL;
+  uint64_t id = 0;
+  uint64_t userId = 0;
+  double t_submit = 0.0;
   uint32_t state = FLUX_JOB_STATE_ACTIVE | FLUX_JOB_STATE_INACTIVE;
 
-  if (flux_request_unpack(msg, NULL, "{s:s s:I s:f s:i}", "topic", &topic_ref,
+  if (flux_request_unpack(msg, NULL, "{s:s s:I s:f s:I}", "topic", &topic_ref,
                           "id", &id, "t_submit", &t_submit, "userId",
                           &userId) < 0) {
     log_error("Job Tap Giving error");
     return;
   }
+  if (!topic_ref || id < 0 || userId < 0) {
+    log_error("Invalid data recevied from jobtap");
+    return;
+  }
+  log_message("Topic ref %s , userid %ld jobId %ld", topic_ref, userId, id);
   topic = strdup(topic_ref);
 
-  json_t *attrs_array = json_array();
-  if (!attrs_array) {
-    free(topic);
-    log_error("JSON_ERROR:Unable to create attrs array for nodelist");
-    goto error;
-  }
-
-  if (json_array_append_new(attrs_array, json_string("nodelist")) == -1) {
-    log_error("JSON_ERROR:Unable to append to attrs array");
-    free(topic);
-    goto error;
-  }
   struct timespec req, rem;
 
-  // Set the sleep time: 500 milliseconds
-  // 1 millisecond = 1,000,000 nanoseconds
-  req.tv_sec = 0;               // 0 seconds
-  req.tv_nsec = 500 * 1000000L; // 500 million nanoseconds (500 milliseconds)
-
-  // Sleep is necessary as run state does not have any data regarding job
-  // nodelist
+  req.tv_sec = 1;               // 0 seconds
+  req.tv_nsec = 000 * 1000000L; // 500 million nanoseconds (500 milliseconds)
   if (nanosleep(&req, &rem) < 0) {
     log_error("Error in Sleep during flux_pwr_manager job_notify");
   }
@@ -247,17 +240,12 @@ void flux_pwr_manager_job_notification_rpc_cb(flux_t *h, flux_msg_handler_t *mh,
   if (!f) {
     log_error("RPC_ERROR:Unable to send RPC to get job info in jobtap %d");
     free(topic);
-    goto error;
   }
   if (flux_future_then(f, -1., handle_jobtap_nodelist_rpc, topic) < 0) {
     log_message(
         "RPC_INFO:Error in setting flux_future_then for RPC get_node_power");
     flux_future_destroy(f); // Clean up the future object
-    goto error;
   }
-error:
-  if (attrs_array != NULL)
-    json_decref(attrs_array);
 }
 
 // void flux_pwr_manager_set_power_ratio_cb(flux_t *h, flux_msg_handler_t *mh,
@@ -291,6 +279,8 @@ static const struct flux_msg_handler_spec htab[] = {
     {FLUX_MSGTYPE_REQUEST, "pwr_mgr.nm-new_job", node_manager_new_job_cb, 0},
     {FLUX_MSGTYPE_REQUEST, "pwr_mgr.nm-set_pl", node_manager_set_pl_cb, 0},
     {FLUX_MSGTYPE_REQUEST, "pwr_mgr.nm-end_job", node_manager_end_job_cb, 0},
+    {FLUX_MSGTYPE_REQUEST, "pwr_mgr.jm-get_pwr_node", node_manager_end_job_cb,
+     0},
     {FLUX_MSGTYPE_REQUEST, "pwr_mgr.cm-set_powerratio",
      cluster_mgr_set_power_ratio_cb, 0},
     {FLUX_MSGTYPE_REQUEST, "pwr_mgr.cm-set_global_pl",
@@ -371,7 +361,7 @@ int mod_main(flux_t *h, int argc, char **argv) {
   }
   // All ranks set a handler for the timer.
   flux_watcher_t *timer_watch_p = flux_timer_watcher_create(
-      flux_get_reactor(h), 10.0, 5.0, timer_handler, h);
+      flux_get_reactor(h), 60.0, 60.0, timer_handler, h);
   if (timer_watch_p == NULL) {
     rc = -1;
     goto done;
@@ -395,15 +385,15 @@ int mod_main(flux_t *h, int argc, char **argv) {
 done:
   // On unload, shutdown the handlers.
   if (rank == 0) {
-    flux_msg_handler_delvec(handlers);
     cluster_mgr_destroy(&current_cluster_mgr);
     for (int i = 0; i < size; i++) {
       if (hostname_list[i] != NULL)
         free(hostname_list[i]);
     }
-    printf("Freeing the hostname_list");
+    printf("Freeing the hostname_list\n");
     free(hostname_list);
     // free(current_power_strategy);
+    flux_msg_handler_delvec(handlers);
   }
   node_manager_destructor();
   return rc;

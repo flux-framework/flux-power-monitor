@@ -22,7 +22,7 @@ typedef struct {
   retro_queue_buffer_t *power_history; // Updated by callback
   pwr_info pwr_data;                   // Updated by callback
   pwr_stats_t *device_pwr_stats;        // Updated by callback
-  node_device_info_t *device_list; //list of devices associated with this job
+  node_device_info_t **device_list; //list of devices associated with this job
   int num_of_gpus;
   int num_of_cpus;
 
@@ -45,7 +45,7 @@ typedef struct {
 // Currently just setting a single value.
 job_mgr_t *job_mgr_new(uint64_t jobId, char **nodelist, int num_of_nodes,
                        char *cwd, char *job_name, POWER_POLICY_TYPE pwr_policy,
-                       double powerlimit,node_device_info_t *device_data,  int *node_index, flux_t *h);
+                       double powerlimit,node_device_info_t **device_data,  int *node_index, flux_t *h);
 /**
  * @brief Destructor for job_mgr.
  * @para h flux handle.
