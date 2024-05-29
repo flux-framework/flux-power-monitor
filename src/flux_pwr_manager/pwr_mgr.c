@@ -97,12 +97,6 @@ static void timer_handler(flux_reactor_t *r, flux_watcher_t *w, int revents,
   // Every time, get data into each job. This require calling cluster_mgr to
   // collect data from each job and in turn each job collect data for each node.
 
-  // node_manager_print_fft_result();
-  int flag=1;
-  if(flag==1){
-    log_message("setting powercap for each node");
-  node_manager_manage_power();
-  }
 }
 void flux_pwr_manager_get_hostname_cb(flux_t *h, flux_msg_handler_t *mh,
                                       const flux_msg_t *msg, void *arg) {
@@ -392,6 +386,7 @@ done:
     }
     printf("Freeing the hostname_list\n");
     free(hostname_list);
+    printf("Done with free hostlist on root");
     // free(current_power_strategy);
     flux_msg_handler_delvec(handlers);
   }

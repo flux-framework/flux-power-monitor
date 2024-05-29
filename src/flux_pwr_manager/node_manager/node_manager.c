@@ -38,7 +38,7 @@ static flux_t *flux_handler;
 uint32_t node_rank;
 uint32_t cluster_size;
 node_data *node_power_data = NULL;
-bool fft_enable = true;
+bool fft_enable = false;
 zhashx_t *current_jobs = NULL;
 
 void node_manager_get_relevant_power_data(node_job_info *job_data) {
@@ -76,17 +76,18 @@ int node_manager_init(flux_t *h, uint32_t rank, uint32_t size, char *hostname,
 }
 int node_manager_update_and_set_powercap(node_job_info *job, double powercap,
                                          int deviceId) {
-  if(job==NULL)
+  if (job == NULL)
     return -1;
 
   double *data = malloc(sizeof(double));
   *data = powercap;
-  log_message("setting power cap for JobId %ld deviceI %d and powercap %f",
-              job->jobId, deviceId, powercap);
+  // log_message("setting power cap for JobId %ld deviceI %d and powercap %f",
+  //             job->jobId, deviceId, powercap);
   retro_queue_buffer_push(job->power_cap_data[deviceId], data);
-  if (power_monitor_set_node_powercap(powercap, deviceId) < 0) {
-    return -1;
-  }
+  // No need to set powercaps right now.
+  // if (power_monitor_set_node_powercap(powercap, deviceId) < 0) {
+  //   return -1;
+  // }
   if (fft_enable)
     fft_predictor_reset(deviceId);
   return 0;
@@ -109,7 +110,8 @@ int node_manager_cal_and_set_powercap() {
           job_data->power_cap_data[job_data->deviceId[i]]->list);
       if (job_device_current_powercap == 0)
         continue;
-      log_message("powerlimit of the job %f",job_data->powerlimit[job_data->deviceId[i]]);
+      log_message("powerlimit of the job %f",
+                  job_data->powerlimit[job_data->deviceId[i]]);
       double new_powecap = data->get_powercap(
           job_data->powerlimit[job_data->deviceId[i]],
           job_device_current_powercap,
@@ -133,8 +135,8 @@ int node_manager_cal_and_set_powercap() {
 
 int node_manager_set_powerlimit(uint64_t jobId, double powerlimit,
                                 int deviceId) {
-  log_message("setting powercap for host %s device %d and power limit %f",
-              node_hostname, deviceId, powerlimit);
+  // log_message("setting powercap for host %s device %d and power limit %f",
+  //             node_hostname, deviceId, powerlimit);
   if (powerlimit <= 0)
     return -1;
   node_job_info *job_data = zhashx_lookup(current_jobs, &jobId);
@@ -148,9 +150,10 @@ int node_manager_set_powerlimit(uint64_t jobId, double powerlimit,
   return 0;
 }
 int node_manager_destructor() {
-
+  printf("start destroy node\n");
   power_monitor_destructor();
-  fft_predictor_destructor();
+  if (fft_enable)
+    fft_predictor_destructor();
   if (node_power_data != NULL) {
     if (node_power_data->node_power_time != NULL)
       retro_queue_buffer_destroy(node_power_data->node_power_time);
@@ -161,6 +164,7 @@ int node_manager_destructor() {
   free(node_power_data);
   if (current_jobs != NULL)
     zhashx_destroy(&current_jobs);
+  printf("Done destroy node\n");
   return 0;
 }
 
@@ -280,9 +284,6 @@ void node_manager_new_job_cb(flux_t *h, flux_msg_handler_t *mh,
   }
   free(device_data);
 }
-
-// void node_flux_powerlimit_rpc_cb(flux_t *h, flux_msg_handler_t *mh,
-//                                  const flux_msg_t *msg, void *arg) {}
 
 void get_fft_result() {
   FILE *file;

@@ -35,14 +35,6 @@ uint64_t shared_jobid = 0;
 //*****These two variable are always modified before file write thread is
 // called, so it should be thread safe.****
 // Callback function for concatenating csv strings
-typedef struct {
-  char *write_buffer[NUM_OF_GPUS];
-  int deviceId[NUM_OF_GPUS];
-  bool file_write;
-  size_t buffer_size;
-  pthread_mutex_t share_lock;
-  char jobname[MAX_FILENAME_SIZE];
-} shared_data;
 
 void *add_data_to_buffer_thread(void *arg) {
   retro_queue_buffer_t *buffer = (retro_queue_buffer_t *)arg;
@@ -119,7 +111,7 @@ void *add_data_to_buffer_thread(void *arg) {
                  (end.tv_nsec - start.tv_nsec);
     time_to_sleep = INTERVAL_SEC * 1000000000L + INTERVAL_NSEC - time_spent;
     if (time_to_sleep < 0) {
-      log_message("Warning: Processing time exceeded sampling interval.");
+      // log_message("Warning: Processing time exceeded sampling interval.");
       time_to_sleep = 0; // Ensure we don't have a negative sleep time
     }
     req.tv_sec = time_to_sleep / 1000000000L;
@@ -134,6 +126,7 @@ void *add_data_to_buffer_thread(void *arg) {
     // Check if we should still insert data after potential long processing
     if (!terminate_thread && p_data) {
       // log_message("inserti");
+
       retro_queue_buffer_push(node_power_data->node_power_time, p_data);
       // printf("entry time stamp %ld \n", p_data->timestamp);
     }
@@ -222,6 +215,7 @@ void power_monitor_start_job(uint64_t jobId) {
       log_error("Job not found in the current jobs hash");
       return;
     }
+
     power_tracker_t *data = power_tracker_new(job_data);
     // Dynamically allocated JobId.
     uint64_t *key = malloc(sizeof(uint64_t));
@@ -237,6 +231,7 @@ void power_monitor_start_job(uint64_t jobId) {
 void power_monitor_end_job(uint64_t jobId) {
 
   if (global_file_write) {
+
     power_tracker_t *data = zhashx_lookup(power_job_data, &jobId);
     if (!data) {
       log_error("data not found for the jobId %ld", jobId);
@@ -256,7 +251,8 @@ void power_monitor_end_job(uint64_t jobId) {
   log_message("POWER_MONITOR:Job done");
 }
 int power_monitor_set_node_power_ratio(int power_ratio) {
-  return variorum_cap_gpu_power_ratio(power_ratio);
+  // return variorum_cap_gpu_power_ratio(power_ratio);
+  return 0;
 }
 int power_monitor_set_node_powercap(double powercap, int gpu_id) {
 
@@ -264,7 +260,7 @@ int power_monitor_set_node_powercap(double powercap, int gpu_id) {
   // snprintf(command, sizeof(command), "sudo nvidia-smi -pl %f -i %d",
   // powercap, gpu_id);
   int powercap_int = (int)round(powercap);
-  log_message("powercapping GPU ID: %d with value d", gpu_id, powercap);
+  // log_message("powercapping GPU ID: %d with value d", gpu_id, powercap);
   snprintf(command, sizeof(command),
            "sudo /admin/scripts/nv_powercap -p  %d -i %d", powercap_int,
            gpu_id);
