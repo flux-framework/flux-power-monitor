@@ -11,6 +11,10 @@ power_tracker_t *power_tracker_new(node_job_info *device_data) {
     log_error("Memory allocation failed for power_tracker_t");
     return NULL;
   }
+  if (device_data == NULL) {
+    log_error("Device information error");
+    return NULL;
+  }
   data->job_info = node_job_info_copy(device_data);
   if (data->job_info == NULL) {
     log_error("Copying of device_data failed");
@@ -26,7 +30,7 @@ power_tracker_t *power_tracker_new(node_job_info *device_data) {
     log_error("Memory allocation error");
     return NULL;
   }
-  data->buffer[0]='\0';
+  data->buffer[0] = '\0';
   data->write_buffer = malloc(data->buffer_size * MAX_CSV_SIZE * sizeof(char));
   if (!data->write_buffer) {
     log_error("Memory allocation error");

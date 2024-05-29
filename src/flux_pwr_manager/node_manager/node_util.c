@@ -3,6 +3,7 @@
 #include "config.h"
 #endif
 #define _POSIX_C_SOURCE 200809L
+#include "flux_pwr_logging.h"
 #include "node_job_info.h"
 #include "node_util.h"
 #include <jansson.h>
@@ -24,29 +25,33 @@ void get_header(char **header, node_job_info *data) {
   int base_length = strlen(base_header);
 
   // Additional header for memory power
-  char mem_header[] = ",Socket 0 Mem Power (W),Socket 1 Mem Power (W)";
+  char mem_header[] = "Socket 0 Mem Power (W),Socket 1 Mem Power (W)";
   int mem_length = strlen(mem_header);
 
   // Calculate the length of the dynamic part of the header for GPU powers
   int dynamic_length = 0;
   for (int i = 0; i < data->num_of_devices; ++i) {
-    dynamic_length += 24; // Length of ",Socket X GPU Power (W)"
+    if (data->device_type[i] == 1) {
+      dynamic_length += 24; // Length of ",Socket X GPU Power (W)"
+    }
   }
-
   // Allocate memory for the full header
   *header = malloc(base_length + dynamic_length + mem_length +
-                   1); // +1 for null terminator
+                   2); // +1 for null terminator
   if (*header == NULL)
     return; // Ensure memory was allocated
 
   // Construct the header
   strcpy(*header, base_header);
   for (int i = 0; i < data->num_of_devices; ++i) {
-    char gpu_part[30]; // Buffer for GPU power part of the header
-    sprintf(gpu_part, "Socket %d GPU Power (W)", data->deviceId[i]);
-    strcat(*header, gpu_part);
+    if (data->device_type[i] == 1) {
+      char gpu_part[30]; // Buffer for GPU power part of the header
+      sprintf(gpu_part, "Socket %d GPU Power (W),", data->deviceId[i]);
+      strcat(*header, gpu_part);
+    }
   }
   strcat(*header, mem_header); // Append memory power information
+
   strcat(*header, "\n");
 }
 
@@ -125,7 +130,7 @@ node_power *parse_string(const char *input_str) {
       json_t *mem_power = json_object_get(socket_power, "power_mem_watts");
       if (json_is_real(mem_power)) {
         // There is only one MEM
-        np->mem_power[mem_count] = json_real_value(cpu_power);
+        np->mem_power[mem_count] = json_real_value(mem_power);
         mem_count++;
       } else {
         json_t *mem_power_val;
@@ -134,6 +139,7 @@ node_power *parse_string(const char *input_str) {
           const char *mem_str = "MEM";
           if (strncmp(mem_key, mem_str, strlen(mem_str)) == 0) {
             if (json_is_real(mem_power_val)) {
+              log_message("mem power %lf", json_real_value(mem_power_val));
               np->cpu_power[mem_count] = json_real_value(mem_power_val);
               mem_count++;
             }
@@ -167,8 +173,8 @@ node_power *parse_string(const char *input_str) {
   np->timestamp = timestamp;
   snprintf(np->csv_string, MAX_CSV_SIZE - 1,
            "%ld,%lf,%lf,%lf,%lf,%lf,%lf,%lf\n", timestamp, np->node_power,
-           np->cpu_power[0], np->gpu_power[0], np->mem_power[0],
-           np->cpu_power[1], np->gpu_power[1], np->mem_power[1]);
+           np->cpu_power[0], np->cpu_power[1], np->gpu_power[0],
+           np->gpu_power[1], np->mem_power[0], np->mem_power[1]);
   np->num_of_gpu = gpu_count;
   json_decref(root);
   return np;

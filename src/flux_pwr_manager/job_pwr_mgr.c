@@ -84,8 +84,6 @@ int send_new_job_rpc(flux_t *h, job_mgr_t *job_mgr) {
     int local_rank = job_mgr->hostname_rank_mapping[i];
     int power_offset = 0;
     node_device_info_t *current_device = NULL;
-    log_message("node %s local_rank %d", job_mgr->node_hostname_list[i],
-                local_rank);
     for (int j = 0; j < job_mgr->num_of_nodes; j++) {
       if (job_mgr->device_list[j]->flux_rank == local_rank) {
         current_device = job_mgr->device_list[j];
