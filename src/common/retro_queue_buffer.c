@@ -1,7 +1,6 @@
 #if HAVE_CONFIG_H
 #include "config.h"
 #endif
-
 #include "retro_queue_buffer.h"
 #include <pthread.h>
 retro_queue_buffer_t *retro_queue_buffer_new(size_t max_size,

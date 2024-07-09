@@ -8,7 +8,7 @@ import pandas as pd
 
 def getJobInfo(handle, jobId):
     jobId = id_parse(jobId)
-    print(jobId)
+    # print(jobId)
     # print(flux.job.JobList(handle,ids=[jobId]).fetch_jobs().get())
     return flux.job.JobList(handle, ids=[jobId]).jobs()[0]
 
@@ -46,7 +46,6 @@ def main():
     h = flux.Flux()
     jobInfo = getJobInfo(h, jobId)
     #
-    print(jobInfo)
     if jobInfo is None:
         print("No Job Data found")
         return None
@@ -57,17 +56,16 @@ def main():
         # startTime = getJobStartTime(jobInfo)
         startTime = int(jobInfo.__getattr__("t_run") * 1e6)
         endTime = int(jobInfo.__getattr__("t_cleanup") * 1e6)
-        print(startTime, endTime)
         # endTime = getjobEndTime(jobInfo)
         if startTime == 0 or endTime == 0:
             raise Exception
     except:
         print("Issue in getting time value")
         return
-    print(
-        f"making an RPC call for start_time: {startTime}, end_time {endTime} and"
-        f" nodeList {hostList} and jobId {id_parse(jobId)}"
-    )
+    # print(
+    #     f"making an RPC call for start_time: {startTime}, end_time {endTime} and"
+    #     f" nodeList {hostList} and jobId {id_parse(jobId)}"
+    # )
     result_json_string = h.rpc(
         "flux_pwr_monitor.get_node_power",
         {
@@ -79,7 +77,7 @@ def main():
         nodeid=0,
         flags=flux.constants.FLUX_RPC_STREAMING,
     ).get()
-    print(result_json_string)
+    # print(result_json_string)
     if result_json_string is None:
         print("ERROR: RPC has no result")
         return
@@ -88,56 +86,21 @@ def main():
         print("The power data is missing")
         return
     # Process the data list into a list of flattened dictionaries
-    processed_data = []
-    for item in data:
-        print(data)
-        print(item)
-        node_power_data = item.pop("node_power_data")
-        flattened = {**item, **node_power_data}
+    df = pd.DataFrame(data)
+    for column in ['cpu_powers', 'gpu_powers', 'mem_powers']:
+        # Create separate columns for each value in the list
+        expanded = df[column].apply(pd.Series)
+        expanded.columns = [f"{column}_{i}" for i in expanded.columns]  # Rename columns
+        df = df.drop(column, axis=1).join(expanded)  # Join the new columns back to the dataframe
+    data_presence_map={0:"Complete",2:"None",1:"partial"}
+    df['data_presence']=df['data_presence'].map(data_presence_map)
 
-        processed_data.append(flattened)
-    # Create DataFrame from the processed data
-    df = pd.DataFrame(processed_data)
-
+        # Create DataFrame from the processed data
+    print(f"power data for job {args.j}")
     print(df)
 
     # Save the DataFrame to a csv file
     df.to_csv(f"{jobId}_{startTime}-{endTime}.csv", index=False)
-    # print(
-    #     h.rpc(
-    #         "flux_pwr_monitor.get_node_power",
-    #         {"start_time": 0, "end_time": 10, "nodelist": ["corona286"]},
-    #         nodeid=0,
-    #         flags=flux.constants.FLUX_RPC_STREAMING,
-    #     ).get()
-    # )
-    # print(
-    #     h.rpc(
-    #         "flux_pwr_monitor.get_node_power",
-    #         {"start_time": 0, "end_time": 10, "nodelist": ["tioga30"]},
-    #         nodeid=0,
-    #         flags=flux.constants.FLUX_RPC_STREAMING,
-    #     ).get()
-    # )
-    #
-    # print(
-    #     h.rpc(
-    #         "flux_pwr_monitor.get_node_power",
-    #         {"start_time": 0, "end_time": 10, "nodelist": ["tioga31"]},
-    #         nodeid=0,
-    #         flags=flux.constants.FLUX_RPC_STREAMING,
-    #     ).get()
-    # )
-    # print(
-    #     h.rpc(
-    #         "flux_pwr_monitor.get_node_power",
-    #         {"start_time": 0, "end_time": 10, "nodelist": ["tioga32"]},
-    #         nodeid=0,
-    #         flags=flux.constants.FLUX_RPC_STREAMING,
-    #     ).get()
-    # )
-    #
-    # print(json.dumps(flux.Flux().rpc("overlay.topology", {"rank": 0}).get()))
 
 
 if __name__ == "__main__":

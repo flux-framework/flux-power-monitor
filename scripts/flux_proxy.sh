@@ -8,8 +8,8 @@
 #export PATH=$PATH:$HOME/local/flux_lassen_install/bin
 #export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$HOME/local/flux_lassen_install/lib
 
-export PATH=$HOME/local/flux_lassen_test/bin/:$PATH
-export LD_LIBRARY_PATH=$HOME/local/flux_lassen_test/lib:$LD_LIBRARY_PATH
+# export PATH=$HOME/local/flux_lassen_test/bin/:$PATH
+# export LD_LIBRARY_PATH=$HOME/local/flux_lassen_test/lib:$LD_LIBRARY_PATH
 
 echo `date` starting flux-proxy
 flux proxy $(cat flux.uri)

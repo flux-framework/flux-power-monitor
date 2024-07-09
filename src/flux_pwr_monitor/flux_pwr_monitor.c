@@ -2,10 +2,11 @@
 #if HAVE_CONFIG_H
 #include "config.h"
 #endif
-#include "retro_queue_buffer.h"
 #include "node_power_info.h"
 #include "response_power_data.h"
+#include "retro_queue_buffer.h"
 #include "root_node_level_info.h"
+#include "flux_pwr_logging.h"
 #include "util.h"
 #include "variorum.h"
 #include <assert.h>
@@ -39,7 +40,7 @@ static void timer_handler(flux_reactor_t *r, flux_watcher_t *w, int revents,
   flux_t *h = (flux_t *)arg;
 
   // Go off and take your measurement.
-  ret = variorum_get_node_power_json(&s);
+  ret = variorum_get_power_json(&s);
   // sprintf(
   //     s,
   //     "{\"host\": \"corona285\", \"timestamp\": 1687898983502846, "
@@ -57,8 +58,7 @@ static void timer_handler(flux_reactor_t *r, flux_watcher_t *w, int revents,
     ts = tv.tv_sec * (uint64_t)1000000 + tv.tv_usec;
     node_power_info *power_data = node_power_info_new(node_hostname, s, ts);
     if (power_data == NULL) {
-      flux_log_error(h, "%s: Error in Creating Node Power Info Object",
-                     __FUNCTION__);
+      log_error( "Error in Creating Node Power Info Object");
       return;
     }
 
@@ -67,8 +67,7 @@ static void timer_handler(flux_reactor_t *r, flux_watcher_t *w, int revents,
           retro_queue_buffer_new(buffer_size, &node_power_info_destroy);
 
       if (per_node_retro_queue_buffer == NULL) {
-        flux_log_error(h, "%s: Error in Creating Root Node Power Data",
-                       __FUNCTION__);
+        log_error(" Error in Creating Root Node Power Data");
         return;
       }
     }
@@ -83,13 +82,13 @@ static void timer_handler(flux_reactor_t *r, flux_watcher_t *w, int revents,
  *hostname provided.
  **/
 
-response_power_data *get_response_power_data(flux_t *h, const char *hostname,
-                                             uint64_t start_time,
-                                             uint64_t end_time) {
+json_t *get_response_power_data(flux_t *h, const char *hostname,
+                                uint64_t start_time, uint64_t end_time) {
   response_power_data *power_data = NULL;
   double agg_node_power, agg_cpu_power, agg_gpu_power, agg_mem_power;
   uint64_t start_t, end_t;
   int status;
+  json_t *data;
   for (int i = 0; i < size; i++) {
     if (hostname_list[i] == NULL)
       continue;
@@ -101,41 +100,39 @@ response_power_data *get_response_power_data(flux_t *h, const char *hostname,
             "end_time", end_time, "node_hostname", hostname);
         if (f == NULL)
           goto error;
-        if (flux_rpc_get_unpack(f, "{s:f s:f s:f s:f s:I s:I s:i}", "n_p",
-                                &agg_node_power, "c_p", &agg_cpu_power, "g_p",
-                                &agg_gpu_power, "m_p", &agg_mem_power,
-                                "r_stime", &start_t, "r_etime", &end_t, "d_p",
-                                &status) < 0) {
-          flux_log_error(h, "error in Unpacking request from children nodes");
+        response_power_data *power_data=get_agg_power_data(per_node_retro_queue_buffer,node_hostname,start_time,end_time);
+        if (power_data == NULL){
+          log_error("Unable to get agg data");
+        }
+        data=response_power_data_to_json(power_data);
+        if(data == NULL){
+          log_error("Unable to get JSON from obj");
+        }
+        if (flux_rpc_get_unpack(f, "{s:O}", "data", &data) < 0) {
+          log_error( "error in Unpacking request from children nodes");
           return NULL;
         }
         flux_future_destroy(f);
-        power_data = response_power_data_new(hostname, start_time, end_time);
-        power_data->data_presence = status;
-        power_data->start_time = start_t;
-        power_data->end_time = end_t;
-        power_data->agg_cpu_power = agg_cpu_power;
-        power_data->agg_node_power = agg_node_power;
-        power_data->agg_gpu_power = agg_gpu_power;
-        power_data->agg_mem_power = agg_mem_power;
-        return power_data;
+
       } else if (i == 0) {
-        power_data = get_agg_power_data(per_node_retro_queue_buffer, node_hostname,
-                                        start_time, end_time);
+        power_data = get_agg_power_data(per_node_retro_queue_buffer,
+                                        node_hostname, start_time, end_time);
         if (power_data == NULL) {
-          flux_log_error(h, "error responding to "
+          log_error( "error responding to "
                             "flux_pwr_montior.get_node_power request");
           return NULL;
         }
-        return power_data;
+        data = response_power_data_to_json(power_data);
+        response_power_data_destroy(power_data);
       }
+      return data;
     }
   }
 error:
   if (flux_respond_error(
           h, NULL, errno,
           "Error:unable to unpack flux_power_monitor.collect_power ") < 0)
-    flux_log_error(h, "%s: flux_respond_error", __FUNCTION__);
+    log_error( " flux_respond_error" );
   return NULL;
 }
 
@@ -160,82 +157,55 @@ void flux_pwr_monitor_get_node_power(flux_t *h, flux_msg_handler_t *mh,
     size_t index;
     size_t num_nodes_data_present = 0;
 
-    response_power_data **power_data_nodes;
-    flux_log(h,LOG_CRIT,"Got request for data");
+    log_message( "Got request for data");
     if (flux_request_unpack(msg, NULL, "{s:I s:I s:I s:o}", "start_time",
                             &start_time, "end_time", &end_time, "flux_jobId",
                             &flux_job_id, "nodelist", &node_list) < 0) {
-      flux_log_error(h, "error Unpacking get_node_power request from client");
+      log_error( "error Unpacking get_node_power request from client");
       if (flux_respond_error(
               h, msg, errno,
               "error Unpacking get_node_power request from client") < 0)
-        flux_log_error(h, "error Unpacking get_node_power request from client");
+        log_error("error Unpacking get_node_power request from client");
       return;
     }
     size_t node_list_size = json_array_size(node_list);
-    power_data_nodes = malloc(sizeof(response_power_data *) * node_list_size);
-
-    if (power_data_nodes == NULL) {
-      flux_respond_error(h, msg, 0,
-                         "FATAL:error creating response_power_data array");
-      flux_log_error(h, "error creating response_power_data array");
-    }
-    for (size_t i = 0; i < node_list_size; i++) {
-      power_data_nodes[i] = NULL;
-    }
-    json_array_foreach(node_list, index, node_hostname) {
-      const char *hostname = json_string_value(node_hostname);
-      if (hostname == NULL) {
-        flux_log_error(h, "JSON parse error for the hostname at index %ld",
-                       index);
-      } else {
-        response_power_data *power_data =
-            get_response_power_data(h, hostname, start_time, end_time);
-
-        if (power_data == NULL) {
-          flux_log_error(h, "Error:  Unable to get agg power_data hostname:%s",
-                         hostname);
-        } else {
-          power_data_nodes[num_nodes_data_present] = power_data;
-          num_nodes_data_present++;
-        }
-      }
-    }
 
     json_t *power_payload = json_array();
-    for (int i = 0; i < num_nodes_data_present; i++) {
-      json_t *data_obj = json_pack(
-          "{s:s s:s s:{s:f s:f s:f s:f s:I s:I}}", "hostname",
-          power_data_nodes[i]->hostname, "data_presence",
-          get_data_presence_string(power_data_nodes[i]->data_presence),
-          "node_power_data", "node_power", power_data_nodes[i]->agg_node_power,
-          "cpu_power", power_data_nodes[i]->agg_cpu_power, "gpu_power",
-          power_data_nodes[i]->agg_gpu_power, "mem_power",
-          power_data_nodes[i]->agg_mem_power, "result_start_time",
-          power_data_nodes[i]->start_time, "result_end_time",
-          power_data_nodes[i]->end_time);
-      // "data_start_time", power_data_nodes[i]->start_time,
-      // "data_end_time", power_data_nodes[i]->end_time);
+    for (size_t i = 0; i < node_list_size; i++) {
+      const char *hostname = json_string_value(json_array_get(node_list, i));
+      if (!hostname) {
+        log_error("JSON parse error for the hostname at index %ld", i);
+        continue;
+      }
+
+      json_t *data_obj =
+          get_response_power_data(h, hostname, start_time, end_time);
+
+      if (!data_obj) {
+        log_error(
+             "Failed to create JSON object for power data of hostname:%s",
+            hostname);
+        continue;
+      }
+
       json_array_append_new(power_payload, data_obj);
     }
-    /** The JSON response would be something like this:
-    {start_time:requested_start_time,end_time:"{requested end time},data:
-    [{hostname:"hostname","full_data_present":{whether data for time range is
-    availabe or not}, node_power_data:{node_power:{Node power reported by
-    variorum},cpu_power:{CPU power reported by variorum}}}}]
-    **/
+
     if (flux_respond_pack(h, msg, "{s:I s:I s:I s:O}", "start_time", start_time,
                           "end_time", end_time, "flux_jobId", flux_job_id,
                           "data", power_payload) < 0) {
-      flux_log_error(h, "error sending output RPC to client");
-      node_power_info_array_destroy(power_data_nodes, num_nodes_data_present);
-      power_data_nodes = NULL;
-      return;
+      log_error( "error sending output RPC to client");
     }
-    json_decref(power_payload);
-    node_power_info_array_destroy(power_data_nodes, num_nodes_data_present);
-    power_data_nodes = NULL;
+
+    json_decref(power_payload); // Cleanup
   }
+
+  /** The JSON response would be something like this:
+  {start_time:requested_start_time,end_time:"{requested end time},data:
+  [{hostname:"hostname","full_data_present":{whether data for time range is
+  availabe or not}, node_power_data:{node_power:{Node power reported by
+  variorum},cpu_power:{CPU power reported by variorum}}}}]
+  **/
 }
 
 /**
@@ -257,41 +227,53 @@ void flux_pwr_monitor_request_power_data_from_node(flux_t *h,
   if (flux_request_unpack(msg, NULL, "{s:I s:I s:s}", "start_time", &start_time,
                           "end_time", &end_time, "node_hostname",
                           &node_name_from_remote) < 0) {
-    flux_log_error(
-        h, "error responding to flux_pwr_montior.get_node_power request");
+   log_error(
+        "error responding to flux_pwr_montior.get_node_power request");
     if (flux_respond_error(
             h, msg, errno,
             "error responding to flux_pwr_montior.get_node_power request") < 0)
-      flux_log_error(
-          h, "error responding to flux_pwr_montior.get_node_power request");
+      log_error(
+          "error responding to flux_pwr_montior.get_node_power request");
     return;
   }
   response_power_data *power_data = get_agg_power_data(
       per_node_retro_queue_buffer, node_hostname, start_time, end_time);
   if (power_data == NULL) {
-    flux_log_error(h, "Unable to get agg data from node for "
+    log_error( "Unable to get agg data from node for "
                       "flux_pwr_montior.request_power_data_from_node request");
     if (flux_respond_error(
             h, msg, errno,
             "error responding to flux_pwr_montior.request_power_data_from_node "
             "request") < 0)
-      flux_log_error(h,
+      log_error(
                      "error responding to "
                      "flux_pwr_montior.request_power_data_from_node request");
     return;
   }
-  if (flux_respond_pack(
-          h, msg, "{s:f s:f s:f s:f s:I s:I s:i}", "n_p",
-          power_data->agg_node_power, "c_p", power_data->agg_cpu_power, "g_p",
-          power_data->agg_gpu_power, "m_p", power_data->agg_mem_power,
-          "r_stime", power_data->start_time, "r_etime", power_data->end_time,
-          "d_p", (int)power_data->data_presence) < 0) {
+  json_t *data = response_power_data_to_json(power_data);
+  if (data == NULL) {
+
+    log_error( "Unable to convert power Data to JSON "
+                      "response_power_data_to_json");
+    if (flux_respond_error(
+            h, msg, errno,
+            "error responding to flux_pwr_montior.request_power_data_from_node "
+            "request") < 0)
+      log_error(
+                     "error responding to "
+                     "flux_pwr_montior.request_power_data_from_node request");
+    return;
+  }
+
+  if (flux_respond_pack(h, msg, "{s:O}", "data", data) < 0) {
+    json_decref(data);
     response_power_data_destroy(power_data);
-    flux_log_error(
-        h, "Error in RPC:flux_pwr_monitor_request_power_data_from_node");
+    log_error(
+        "Error in RPC:flux_pwr_monitor_request_power_data_from_node");
     return;
   }
   response_power_data_destroy(power_data);
+  json_decref(data);
 }
 // Currently for decentralized version of the monitor. The request for data
 // would contain a nodelist. Currently root has no inforamtion about the
@@ -317,16 +299,16 @@ void flux_pwr_monitor_get_hostname(flux_t *h, flux_msg_handler_t *mh,
   } else if (rank == 0) {
     hostname_list[sender] = strdup(hostname);
     if (hostname_list[sender] == NULL) {
-      flux_log_error(h, "Error in copying string");
+      log_error( "Error in copying string");
     }
   }
 
 error:
-  flux_log_error(h, "Unable to unpack hostname request");
+  log_error("Unable to unpack hostname request");
   if (flux_respond_error(
           h, msg, errno,
           "Error:unable to unpack flux_power_monitor.collect_power ") < 0)
-    flux_log_error(h, "%s: flux_respond_error", __FUNCTION__);
+    log_error( "flux_respond_error");
 }
 static const struct flux_msg_handler_spec htab[] = {
 
@@ -347,6 +329,7 @@ int mod_main(flux_t *h, int argc, char **argv) {
   flux_get_size(h, &size);
   // All ranks set a handler for the timer.
   //
+  init_flux_pwr_logging(h);
   if (size == 0)
     return 0;
   while ((opt = getopt(argc, argv, "s:r:")) !=
@@ -368,13 +351,13 @@ int mod_main(flux_t *h, int argc, char **argv) {
   if (buffer_size == 0)
     buffer_size = 1000000;
   if (sampling_rate == 0)
-    sampling_rate = 2;
+    sampling_rate = 1;
 
   if (rank == 0) {
     if (hostname_list == NULL) {
       hostname_list = malloc(sizeof(char *) * size);
       if (hostname_list == NULL) {
-        flux_log_error(h, "Unable to allocate memory for hostname_list");
+        log_error( "Unable to allocate memory for hostname_list");
         return -1;
       }
     }

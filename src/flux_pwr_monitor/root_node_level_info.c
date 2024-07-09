@@ -1,4 +1,6 @@
-#define _POSIX_C_SOURCE 200809L
+#if HAVE_CONFIG_H
+#include "config.h"
+#endif
 #include "root_node_level_info.h"
 root_node_level_info *root_node_data_new(int sender,
                                          const char *recv_from_hostname,

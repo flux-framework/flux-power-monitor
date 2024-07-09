@@ -9,3 +9,6 @@ libcommon_la_SOURCES=	\
 											flux_pwr_logging.c \
 											parse_util.c \
 											util.c
+libcommon_la_LIBADD = \
+														 -lczmq
+
