@@ -42,7 +42,6 @@ AC_ARG_WITH([variorum],
               AC_SUBST([VARIORUM_LIB])
               CPPFLAGS="$CPPFLAGS $VARIORUM_INCLUDE"
               LDFLAGS="$LDFLAGS $VARIORUM_LIB"
-         #     AC_MSG_ERROR([Variorum path is $withval/lib])
              # AC_CHECK_LIB([variorum], [variorum_get_power_json],
              #              [],
              #              [AC_MSG_ERROR([Function variorum_get_power_json is required in Variorum library.])])
