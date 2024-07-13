@@ -395,7 +395,6 @@ int mod_main(flux_t *h, int argc, char **argv) {
 done:
   // On unload, shutdown the handlers.
   if (rank == 0) {
-    flux_msg_handler_delvec(handlers);
     cluster_mgr_destroy(&current_cluster_mgr);
     for (int i = 0; i < size; i++) {
       if (hostname_list[i] != NULL)
@@ -404,6 +403,7 @@ done:
     printf("Freeing the hostname_list");
     free(hostname_list);
     // free(current_power_strategy);
+  flux_msg_handler_delvec(handlers);
   }
   node_manager_destructor();
   return rc;
