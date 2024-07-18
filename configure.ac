@@ -40,9 +40,9 @@ AC_ARG_WITH([variorum],
               VARIORUM_INCLUDE="-I$withval/include"
               CPPFLAGS="$CPPFLAGS $VARIORUM_INCLUDE"
               LDFLAGS="$LDFLAGS $VARIORUM_LIB"
-              AC_CHECK_LIB([variorum], [variorum_get_node_power_json],
+              AC_CHECK_LIB([variorum], [variorum_get_power_json],
                            [],
-                           [AC_MSG_ERROR([Function variorum_get_power is required in Variorum library.])])
+                           [AC_MSG_ERROR([Function variorum_get_power_json is required in Variorum library.])])
             ],
             [AC_MSG_ERROR([Variorum library is required. Please use --with-variorum to specify its location.])])
 CPPFLAGS="$CPPFLAGS_save $VARIORUM_INCLUDE"
