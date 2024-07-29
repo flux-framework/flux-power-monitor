@@ -36,17 +36,25 @@ AC_ARG_WITH([variorum],
             [AS_HELP_STRING([--with-variorum=DIR],
                             [path to Variorum library])],
             [
-              VARIORUM_LIB="-L$withval/lib"
+              VARIORUM_LIB="-L$withval/lib -Wl,--rpath=$withval/lib"
               VARIORUM_INCLUDE="-I$withval/include"
+              AC_SUBST([VARIORUM_INCLUDE])
+              AC_SUBST([VARIORUM_LIB])
               CPPFLAGS="$CPPFLAGS $VARIORUM_INCLUDE"
               LDFLAGS="$LDFLAGS $VARIORUM_LIB"
-              AC_CHECK_LIB([variorum], [variorum_get_power_json],
-                           [],
-                           [AC_MSG_ERROR([Function variorum_get_power_json is required in Variorum library.])])
+             # AC_CHECK_LIB([variorum], [variorum_get_power_json],
+             #              [],
+             #              [AC_MSG_ERROR([Function variorum_get_power_json is required in Variorum library.])])
             ],
-            [AC_MSG_ERROR([Variorum library is required. Please use --with-variorum to specify its location.])])
-CPPFLAGS="$CPPFLAGS_save $VARIORUM_INCLUDE"
-LDFLAGS="$LDFLAGS_save $VARIORUM_LIB"
+           [AC_MSG_ERROR([Variorum library is required. Please use --with-variorum to specify its location.])]
+         )
+AC_MSG_NOTICE([variorum cppflags : ${CPPFLAGS}])
+AC_MSG_NOTICE([variorum ldflags : ${LDFLAGS}])
+AC_MSG_NOTICE([variorum cppflags : ${VARIORUM_INCLUDE}])
+AC_MSG_NOTICE([variorum ldflags : ${VARIORUM_LIB}])
+
+#CPPFLAGS="$CPPFLAGS_save $VARIORUM_INCLUDE"
+#LDFLAGS="$LDFLAGS_save $VARIORUM_LIB"
 AC_ARG_ENABLE([ubsan],
   [AS_HELP_STRING([--enable-ubsan], [Enable Undefined Behavior Sanitizer])],
   [CFLAGS="$CFLAGS -fsanitize=undefined"
@@ -63,9 +71,9 @@ AC_ARG_ENABLE([ubsan],
 #               LDFLAGS="$LDFLAGS $FFTW_LIB"
 #             ],
 #             [AC_MSG_ERROR([FFTW library is required. Please use --with-fftw to specify its location.])])
-PKG_CHECK_MODULES([FFTW], [fftw3],
-                  [],
-                  [AC_MSG_ERROR([FFTW library not found. Please install it.])])
+#PKG_CHECK_MODULES([FFTW], [fftw3],
+#                  [],
+#                  [AC_MSG_ERROR([FFTW library not found. Please install it.])])
 
 PKG_CHECK_MODULES([czmq], [libczmq],
                   [],

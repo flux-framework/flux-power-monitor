@@ -13,7 +13,8 @@ flux_pwr_monitor_la_CPPFLAGS = \
 flux_pwr_monitor_la_LIBADD = \
 											$(FLUX_CORE_LIBS) \
 											$(VARIORUM_LIB) \
-											$(top_builddir)/src/common/libcommon.la
+											$(top_builddir)/src/common/libcommon.la \
+											-lvariorum
 flux_pwr_monitor_la_LDFLAGS = \
 																$(fluxpwr_ldflags) \
 																	-module
