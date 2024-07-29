@@ -14,16 +14,21 @@ def getJobInfo(handle, jobId):
 
 
 def getNodeList(nodeData):
-    hostname, ranges = nodeData.strip().split("[")
-    ranges = ranges.rstrip("]").split(",")
+    print(nodeData)
+    if "[" in nodeData:
+        hostname, ranges = nodeData.strip().split("[")
+        ranges = ranges.rstrip("]").split(",")
 
-    hostList = []
-    for range_ in ranges:
-        if "-" in range_:
-            start, end = map(int, range_.split("-"))
-            hostList.extend(f"{hostname}{i}" for i in range(start, end + 1))
-        else:
-            hostList.append(f"{hostname}{range_}")
+        hostList = []
+        for range_ in ranges:
+            if "-" in range_:
+                start, end = map(int, range_.split("-"))
+                hostList.extend(
+                    f"{hostname}{i}" for i in range(start, end + 1))
+            else:
+                hostList.append(f"{hostname}{range_}")
+    else:
+        hostList = [nodeData]
 
     return hostList
 
@@ -87,15 +92,17 @@ def main():
         return
     # Process the data list into a list of flattened dictionaries
     df = pd.DataFrame(data)
-    for column in ['cpu_powers', 'gpu_powers', 'mem_powers']:
+    for column in ['cpu_power', 'gpu_power', 'mem_power']:
         # Create separate columns for each value in the list
         expanded = df[column].apply(pd.Series)
-        expanded.columns = [f"{column}_{i}" for i in expanded.columns]  # Rename columns
-        df = df.drop(column, axis=1).join(expanded)  # Join the new columns back to the dataframe
-    data_presence_map={0:"Complete",2:"None",1:"partial"}
-    df['data_presence']=df['data_presence'].map(data_presence_map)
+        expanded.columns = [
+            f"{column}_{i}" for i in expanded.columns]  # Rename columns
+        # Join the new columns back to the dataframe
+        df = df.drop(column, axis=1).join(expanded)
+    data_presence_map = {0: "Complete", 2: "None", 1: "partial"}
+    df['data_presence'] = df['data_presence'].map(data_presence_map)
 
-        # Create DataFrame from the processed data
+    # Create DataFrame from the processed data
     print(f"power data for job {args.j}")
     print(df)
 

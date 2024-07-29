@@ -47,9 +47,9 @@ json_t *response_power_data_to_json(response_power_data *data) {
     return json_pack("{s:s s:f s:o s:o s:o s:I s:I s:i}",
                      "hostname", data->hostname,
                      "node_power", data->agg_node_power,
-                     "cpu_powers", cpu_powers,
-                     "gpu_powers", gpu_powers,
-                     "mem_powers", mem_powers,
+                     "cpu_power", cpu_powers,
+                     "gpu_power", gpu_powers,
+                     "mem_power", mem_powers,
                      "result_start_time", data->start_time,
                      "result_end_time", data->end_time,
                      "data_presence", (int)data->data_presence);
