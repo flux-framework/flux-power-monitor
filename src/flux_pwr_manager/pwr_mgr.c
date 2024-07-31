@@ -20,8 +20,6 @@
 #include <unistd.h>
 #define JOB_MAP_SIZE 100
 #define HOSTNAME_SIZE 256
-#define MAX_NODE_POWER 3050
-#define MIN_NODE_POWER 500
 #define BUFFER_SIZE                                                            \
   360 // Number of samples in seconds, total 6 mins collect data
 int num_of_job = 0;
@@ -182,6 +180,7 @@ void handle_jobtap_nodelist_rpc(flux_future_t *f, void *args) {
   }
   log_message("nodelist %s cwd %s name %s", node_string, job_cwd, job_name);
   int ret = getNodeList((char *)node_string, &job_hostname_list, &size);
+  log_message("test 123");
   if (ret < 0) {
     log_message("getting nodelist failed");
     goto error;
@@ -244,7 +243,7 @@ void flux_pwr_manager_job_notification_rpc_cb(flux_t *h, flux_msg_handler_t *mh,
   if (flux_future_then(f, -1., handle_jobtap_nodelist_rpc, topic) < 0) {
     log_message(
         "RPC_INFO:Error in setting flux_future_then for RPC get_node_power");
-    flux_future_destroy(f); // Clean up the future object
+    flux_future_destroy(f); 
   }
 }
 

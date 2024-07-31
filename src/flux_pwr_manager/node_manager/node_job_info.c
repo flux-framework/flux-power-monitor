@@ -23,7 +23,7 @@ node_job_info *node_job_info_create(uint64_t jobId, char *job_cwd,
   }
   for (int i = 0; i < device_data->num_of_gpus; i++) {
     job_info->external_power_data_reference[job_info->deviceId[i]] = NULL;
-    job_info->power_policy_type[job_info->deviceId[i]] = UNIFORM;
+    job_info->power_policy_type[job_info->deviceId[i]] = FFT;
   }
 
   return job_info;

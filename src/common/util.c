@@ -161,7 +161,6 @@ response_power_data *get_agg_power_data(retro_queue_buffer_t *buffer,
 int getNodeList(char *nodeData, char ***hostList, int *size) {
   char *hostname;
   char *ranges;
-  printf("This is node data %s \n", nodeData);
 
   if (strchr(nodeData, '[') == NULL) {
     *hostList = realloc(*hostList, (*size + 1) * sizeof(char *));
@@ -170,13 +169,11 @@ int getNodeList(char *nodeData, char ***hostList, int *size) {
       return -1;
     }
 
-    printf("This is node data 1 %s \n", nodeData);
     (*hostList)[*size] = malloc(strlen(nodeData) + 1); // +1 for null terminator
     if ((*hostList)[*size] == NULL) {
       log_error("Failed to allocate memory.\n");
       return -1;
     }
-    printf("This is node data 2 %s \n", nodeData);
 
     strcpy((*hostList)[*size], nodeData);
     (*size)++;
@@ -184,7 +181,6 @@ int getNodeList(char *nodeData, char ***hostList, int *size) {
 
     // Split the nodeData
     hostname = strtok(nodeData, "[");
-
     if (hostname == NULL) {
       log_error("Node Data is NULL \n");
       return -1;
@@ -202,7 +198,6 @@ int getNodeList(char *nodeData, char ***hostList, int *size) {
     }
 
     ranges[strlen(ranges) - 1] = 0;
-
     // Split ranges by comma
     char *range = strtok(ranges, ",");
     while (range != NULL) {

@@ -26,6 +26,7 @@ pwr_mgr_la_LIBADD = \
 
 pwr_mgr_la_LDFLAGS = \
     $(fluxpwr_ldflags) \
+		-lczmq \
     -module
 
 # Definition for job_notification shared library

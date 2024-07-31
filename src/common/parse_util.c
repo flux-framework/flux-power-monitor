@@ -74,7 +74,6 @@ int update_device_info_from_json(json_t *json,
   char **nodelist_name = NULL;
 
   printf("JSON: %s\n", json_dumps(json, 0));
-  log_message("parsing R\n");
   execution = json_object_get(json, "execution");
   if (!execution) {
     printf("Failed to parse R string\n");
@@ -185,7 +184,6 @@ int update_device_info_from_json(json_t *json,
       printf("Parsing failed on individual_nodes\n");
       continue;
     }
-
     for (int i = current_size; i < current_size + num_of_elements; i++) {
       nodelist_name[i] = strdup(individual_nodes[i]);
       if (!nodelist_name[i]) {
@@ -196,13 +194,15 @@ int update_device_info_from_json(json_t *json,
     free(individual_nodes);
     current_size += num_of_elements;
   }
+  log_message("Done with parsing");
   if (nodelist_name != NULL) {
     for (int i = 0; i < num_of_nodes; i++) {
       if (nodelist_name[i] != NULL) {
         (*node_device_info_list)[i]->hostname = strdup(nodelist_name[i]);
-        printf("nodelist_name for i %d is %s\n", i,
+        log_message("nodelist_name for i %d is %s\n", i,
                (*node_device_info_list)[i]->hostname);
-        if (!(*node_device_info_list)[i]->hostname) {
+
+        if ((*node_device_info_list)[i]->hostname == NULL) {
           printf("copy to node device info failed\n");
           free(nodelist_name[i]);
         }

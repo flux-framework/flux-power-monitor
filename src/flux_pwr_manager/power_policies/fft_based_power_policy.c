@@ -35,18 +35,21 @@ double fft_get_powercap(double powerlimit, double current_powercap,
               current_powercap, old_period, new_period);
 
   double period_diff = old_period - new_period;
+  log_message("period_dff %f",period_diff);
   // Positive feedback loop, give more power.
   if (period_diff > 2) {
     new_powercap = current_powercap + 50;
+    log_message("period diff is greater then 2 %f",new_powercap);
     // Reduce some power, application not that effected by powercap.
+  }
     if (period_diff > -2 && period_diff < 2) {
       new_powercap = current_powercap - 50;
+    log_message("period diff is between  2 %f",new_powercap);
     }
     // Too much efffect, application is quite slow, increase power.
     if (period_diff < -2) {
       new_powercap = current_powercap + 50;
     }
-  }
 
   if (new_powercap > powerlimit)
     new_powercap = powerlimit;

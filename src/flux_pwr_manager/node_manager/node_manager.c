@@ -107,6 +107,7 @@ int node_manager_cal_and_set_powercap() {
       }
       double job_device_current_powercap = *(double *)zlist_last(
           job_data->power_cap_data[job_data->deviceId[i]]->list);
+      log_message("job_device current power cap %f",job_device_current_powercap);
       if (job_device_current_powercap == 0)
         continue;
       log_message("powerlimit of the job %f",job_data->powerlimit[job_data->deviceId[i]]);
@@ -214,7 +215,7 @@ void node_manager_set_pl_cb(flux_t *h, flux_msg_handler_t *mh,
   int powerlimit_size;
   uint64_t jobId;
   log_message("recv data");
-  if (flux_request_unpack(msg, NULL, "{sLs s:O}", "jobId", &jobId, "data",
+  if (flux_request_unpack(msg, NULL, "{s:I s:O}", "jobId", &jobId, "data",
                           &device_data_json) < 0) {
     log_error("RPC_ERROR:Unable to decode set powerlimit RPC");
   }

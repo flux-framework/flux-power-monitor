@@ -115,6 +115,15 @@ void *fft_thread_func(void *args) {
         for (int i = 0; i < NUM_OF_GPUS; i++) {
           if (fft_job_data[i]->jobId != 0) {
             fft_tracker_t *data = fft_job_data[i];
+            // Check if we are going to overflow the buffer and stop.
+            if (data->cumulative_sum + (FFT_SAMPLING_PERIOD*SAMPLING_RATE) >= FFT_BUFFER_SIZE) {
+              data->data_copied_count = 0;
+              data->fft_input_index = 0;
+              data->cumulative_sum = 0;
+              memset(data->device_data, 0,
+                     sizeof(fftw_complex) * FFT_BUFFER_SIZE);
+            }
+
             data->buffer_marker_list = retro_queue_buffer_iterate_from(
                 node_power_data->node_power_time, &node_power_cmp,
                 (void *)data->buffer_marker_list,
@@ -149,13 +158,6 @@ void *fft_thread_func(void *args) {
             retro_queue_buffer_push(fft_result_array->average_period_tracker[i],
                                     avg);
 
-            if (data->cumulative_sum >= FFT_BUFFER_SIZE) {
-              data->data_copied_count = 0;
-              data->fft_input_index = 0;
-              data->cumulative_sum = 0;
-              memset(data->device_data, 0,
-                     sizeof(fftw_complex) * FFT_BUFFER_SIZE);
-            }
             clock_gettime(CLOCK_THREAD_CPUTIME_ID, &end);
             elapsed = end.tv_sec - start.tv_sec;
             elapsed += (end.tv_nsec - start.tv_nsec) / 1000000000.0;

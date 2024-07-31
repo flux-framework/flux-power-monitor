@@ -1,3 +1,4 @@
+#include <jansson.h>
 #if HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -47,7 +48,7 @@ int update_node_powerlimit_rpc(job_mgr_t *job_mgr, flux_t *h,
     } else {
       log_message("send powerlimit RPC");
       if (flux_rpc_pack(h, "pwr_mgr.nm-set_pl", local_rank, FLUX_RPC_NORESPONSE,
-                        "{s:s s:O}","jobId",job_mgr->jobId, "data", data) < 0) {
+                        "{s:I s:O}","jobId",job_mgr->jobId, "data", data) < 0) {
         log_error(
             "RPC_ERROR:Unable to send new powelimit to node index: %d and name",
             i, job_mgr->node_hostname_list[i]);
