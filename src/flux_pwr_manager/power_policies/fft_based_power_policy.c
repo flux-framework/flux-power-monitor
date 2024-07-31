@@ -4,6 +4,7 @@
 #include "flux_pwr_logging.h"
 #include "retro_queue_buffer.h"
 #include "uniform_pwr_policy.h"
+#include "system_config.h"
 /** We are going to increment power in multiple of 50W.
  *
  *
@@ -39,12 +40,10 @@ double fft_get_powercap(double powerlimit, double current_powercap,
   // Positive feedback loop, give more power.
   if (period_diff > 2) {
     new_powercap = current_powercap + 50;
-    log_message("period diff is greater then 2 %f",new_powercap);
     // Reduce some power, application not that effected by powercap.
   }
     if (period_diff > -2 && period_diff < 2) {
       new_powercap = current_powercap - 50;
-    log_message("period diff is between  2 %f",new_powercap);
     }
     // Too much efffect, application is quite slow, increase power.
     if (period_diff < -2) {
@@ -53,6 +52,8 @@ double fft_get_powercap(double powerlimit, double current_powercap,
 
   if (new_powercap > powerlimit)
     new_powercap = powerlimit;
+  if (new_powercap < MIN_GPU_POWER)
+    new_powercap=MIN_GPU_POWER;
   log_message("New powercap %f", new_powercap);
   return new_powercap;
 }
