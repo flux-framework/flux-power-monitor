@@ -8,4 +8,5 @@ libcommon_la_SOURCES=	\
 											power_data.c \
 											flux_pwr_logging.c \
 											parse_util.c \
+											file_logger.c \
 											util.c

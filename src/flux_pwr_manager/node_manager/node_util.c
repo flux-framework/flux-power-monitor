@@ -1,8 +1,7 @@
-#include "system_config.h"
 #if HAVE_CONFIG_H
 #include "config.h"
 #endif
-#define _POSIX_C_SOURCE 200809L
+#include "system_config.h"
 #include "flux_pwr_logging.h"
 #include "node_job_info.h"
 #include "node_util.h"

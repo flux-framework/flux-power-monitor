@@ -1,8 +1,8 @@
-#include "response_power_data.h"
-#include "retro_queue_buffer.h"
 #if HAVE_CONFIG_H
 #include "config.h"
 #endif
+#include "response_power_data.h"
+#include "retro_queue_buffer.h"
 #include "flux_pwr_logging.h"
 #include "util.h"
 #include <assert.h>
