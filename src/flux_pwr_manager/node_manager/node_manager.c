@@ -345,7 +345,15 @@ void get_fft_result() {
   }
   fclose(file);
 }
+void node_manager_disable_pm_cb(flux_t *h, flux_msg_handler_t *mh,
+                             const flux_msg_t *msg, void *args){
+  bool flag;
 
+  if (flux_request_unpack(msg, NULL, "{s:b}", "flag", &flag) < 0) {
+    log_error("RPC_ERROR:Unable to decode set powerlimit RPC");
+  }
+  enable_dynamic_powercapping=flag;
+}
 void node_manager_manage_power() {
   //
   //   for (int i = 0; i < node_job_data->num_of_devices; i++) {
