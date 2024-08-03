@@ -82,6 +82,8 @@ void *add_data_to_buffer_thread(void *arg) {
     bool write_flag_set = false;
     // The last value is the marker.
     if (global_file_write) {
+      if(power_job_data==NULL)
+        goto calculate_sleep;
       power_tracker_t *data = zhashx_first(power_job_data);
       while (data != NULL) {
         if (data->value_written == BUFFER_SIZE) {
@@ -356,6 +358,8 @@ void power_monitor_destructor() {
       zhashx_destroy(&power_job_data);
     }
     free(power_job_data);
+     power_job_data=NULL;
+
     destroy_pthread_component();
   }
 }

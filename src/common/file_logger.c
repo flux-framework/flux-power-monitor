@@ -10,10 +10,10 @@
 #include <string.h>
 #include <sys/time.h>
 
-void reset_buffer(Logger *log) {
+void reset_file_buffer(Logger *log) {
     if (log == NULL || log->buffer == NULL)
         return;
-    for (int i = 0; i < BUFFER_SIZE; i++) {
+    for (int i = 0; i < FILE_LOGGER_BUFFER_SIZE; i++) {
         memset(log->buffer[i], 0, DATA_SIZE);
     }
     log->buffer_location = 0;
@@ -22,12 +22,12 @@ void reset_buffer(Logger *log) {
 void init_buffer(Logger *log) {
     if (log == NULL)
         return;
-    log->buffer = (char **)malloc(sizeof(char *) * BUFFER_SIZE);
+    log->buffer = (char **)malloc(sizeof(char *) * FILE_LOGGER_BUFFER_SIZE);
     if (log->buffer == NULL) {
         printf("Memory error in buffer allocation\n");
         return;
     }
-    for (int i = 0; i < BUFFER_SIZE; i++) {
+    for (int i = 0; i < FILE_LOGGER_BUFFER_SIZE; i++) {
         log->buffer[i] = (char *)malloc(sizeof(char) * DATA_SIZE);
         if (log->buffer[i] == NULL) {
             printf("Memory error in buffer row allocation\n");
@@ -39,22 +39,22 @@ void init_buffer(Logger *log) {
             return;
         }
     }
-    reset_buffer(log);
+    reset_file_buffer(log);
 }
 
 void destroy_buffer(Logger *log) {
     if (log == NULL || log->buffer == NULL)
         return;
-    for (int i = 0; i < BUFFER_SIZE; i++) {
+    for (int i = 0; i < FILE_LOGGER_BUFFER_SIZE; i++) {
         free(log->buffer[i]);
     }
     free(log->buffer);
     log->buffer = NULL;
 }
 
-void write_file(Logger *log) {
-    if (log == NULL || log->buffer == NULL)
-        return;
+void file_logger_write_file(Logger *log) {
+    if (log == NULL || log->buffer == NULL){
+        return;}
     FILE *file = fopen(log->filename, "a");
     if (file == NULL) {
         printf("Failed to open file\n");
@@ -62,9 +62,10 @@ void write_file(Logger *log) {
     }
     for (int i = 0; i < log->buffer_location; i++) {
         fprintf(file, "%s", log->buffer[i]);
+        fprintf(file,"\n");
     }
     fclose(file);
-    reset_buffer(log);
+    reset_file_buffer(log);
 }
 
 Logger *file_logger_new(char *filename, int filename_len) {
@@ -84,13 +85,14 @@ Logger *file_logger_new(char *filename, int filename_len) {
         free(log);
         return NULL;
     }
+  printf("file logger new");
     return log;
 }
 
 void file_logger_destroy(Logger **log) {
     if (log != NULL && *log != NULL) {
         if ((*log)->buffer != NULL) {
-            write_file(*log);
+            file_logger_write_file(*log);
             destroy_buffer(*log);
         }
         free((*log)->filename);
@@ -110,8 +112,8 @@ int file_logger_add_data_to_buffer(Logger *log, char *key, int key_len, char *da
         printf("Data too big to write\n");
         return -1;
     }
-    if (log->buffer_location >= BUFFER_SIZE) {
-        write_file(log);
+    if (log->buffer_location >= FILE_LOGGER_BUFFER_SIZE) {
+        file_logger_write_file(log);
     }
     snprintf(log->buffer[log->buffer_location], DATA_SIZE, "{\"%s\":\"%s\",time:%lu}", key, data, timestamp);
     log->buffer_location++;

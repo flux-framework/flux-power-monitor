@@ -1,5 +1,4 @@
 /* power-mgr.c */
-#include <zlist.h>
 #if HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -40,7 +39,7 @@ static flux_t *flux_handler;
 uint32_t node_rank;
 uint32_t cluster_size;
 node_data *node_power_data = NULL;
-bool fft_enable = true;
+bool fft_enable = false;
 zhashx_t *current_jobs = NULL;
 bool enable_dynamic_powercapping = false;
 Logger *file_log = NULL;
@@ -110,7 +109,7 @@ int node_manager_cal_and_set_powercap() {
     while (job_data != NULL) {
 
       for (int i = 0; i < job_data->num_of_devices; i++) {
-        if (job_data->power_policy_type[job_data->deviceId[i]] == FFT) {
+        if (job_data->power_policy_type[job_data->deviceId[i]] == FFT &&  fft_enable) {
           log_message("Power Policy type is FFT");
           fft_pwr_policy_init(data);
         } else {
@@ -137,8 +136,10 @@ int node_manager_cal_and_set_powercap() {
                 job_data
                     ->external_power_data_reference[job_data->deviceId[i]]) !=
             0) {
-          period = zlist_last(
-              job_data->external_power_data_reference[job_data->deviceId[i]]);
+          double *p = (double *)zlist_last(
+              job_data->external_power_data_reference[job_data->deviceId[i]]
+                  ->list);
+          period = *p;
         }
         snprintf(j_data, LOG_LEN, "%f", period);
         file_logger_add_data_to_buffer(file_log, j_key, strlen(j_key), j_data,
@@ -176,7 +177,7 @@ int node_manager_set_powerlimit(uint64_t jobId, double powerlimit,
   log_message("setting powercap for host %s device %d and power limit %f",
               node_hostname, deviceId, powerlimit);
   if (powerlimit <= 0)
-    G return -1;
+    return -1;
   node_job_info *job_data = zhashx_lookup(current_jobs, &jobId);
   if (job_data == NULL)
     return -1;
@@ -220,6 +221,7 @@ int node_manager_finish_job(uint64_t jobId) {
   snprintf(j_data, LOG_LEN, "%lu", jobId);
   file_logger_add_data_to_buffer(file_log, j_key, strlen(j_key), j_data,
                                  strlen(j_data));
+  file_logger_write_file(file_log);
   power_monitor_end_job(jobId);
   if (fft_enable)
     fft_predictor_finish_job(jobId);

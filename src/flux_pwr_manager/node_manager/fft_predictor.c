@@ -97,8 +97,8 @@ void *fft_thread_func(void *args) {
   while (fft_thread_running) {
 
     pthread_mutex_lock(&fft_mutex);
-    while (!job_active) {
-      // Wait indefinitely until a job starts
+    while (!job_active && fft_thread_running) {
+      // Wait indefinitely until a job starts or only when fft thread is running
       pthread_cond_wait(&fft_cond, &fft_mutex);
     }
 
@@ -178,7 +178,6 @@ void *fft_thread_func(void *args) {
 
     pthread_mutex_unlock(&fft_mutex);
   }
-
   pthread_exit(NULL);
 }
 void fft_tracker_reset(fft_tracker_t *fft_object) {
@@ -238,6 +237,7 @@ void fft_predictor_init() {
 void fft_predictor_destructor() {
   pthread_mutex_lock(&fft_mutex);
   fft_thread_running = false;
+  job_active=false;
   pthread_cond_signal(&fft_cond);
   pthread_mutex_unlock(&fft_mutex);
   pthread_join(fft_thread, NULL); // Wait for the thread to finish

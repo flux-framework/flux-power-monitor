@@ -45,7 +45,7 @@ void power_tracker_destroy(void **power_tracker_data) {
   // Don't destroy job info as that will be handled by node_manager.
   if (*power_tracker_data == NULL)
     return;
-  power_tracker_t *data = (power_tracker_t *)*power_tracker_data;
+  power_tracker_t *data = (power_tracker_t *)(*power_tracker_data);
   if (data->buffer) {
     free(data->buffer);
   }
