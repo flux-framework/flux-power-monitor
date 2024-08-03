@@ -40,6 +40,7 @@ uint32_t cluster_size;
 node_data *node_power_data = NULL;
 bool fft_enable = true;
 zhashx_t *current_jobs = NULL;
+bool enable_dynamic_powercapping=false;
 
 void node_manager_get_relevant_power_data(node_job_info *job_data) {
 
@@ -91,10 +92,15 @@ int node_manager_update_and_set_powercap(node_job_info *job, double powercap,
     fft_predictor_reset(deviceId);
   return 0;
 }
+// Write data to a file, for whatever power decision we are making
+int log_decision_making(){
+  
+}
 int node_manager_cal_and_set_powercap() {
+  if(enable_dynamic_powercapping){
+
   log_message("set nodepowercap function");
   pwr_policy_t *data = malloc(sizeof(pwr_policy_t));
-
   node_job_info *job_data = zhashx_first(current_jobs);
   while (job_data != NULL) {
 
@@ -130,6 +136,9 @@ int node_manager_cal_and_set_powercap() {
   }
   free(data);
   return 0;
+  }else{
+    log_message("dynamic powercapping disabled");
+  }
 }
 
 int node_manager_set_powerlimit(uint64_t jobId, double powerlimit,

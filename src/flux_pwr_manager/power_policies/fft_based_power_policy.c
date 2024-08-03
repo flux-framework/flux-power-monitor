@@ -13,6 +13,7 @@ double fft_get_powercap(double powerlimit, double current_powercap,
                         void *data) {
   if (!data)
     return -1;
+  log_message("powerlimit %f ,current_powercap %f",powerlimit,current_powercap);
   retro_queue_buffer_t *fft_result = (retro_queue_buffer_t *)data;
   if (data == NULL)
     return -1;
@@ -30,11 +31,12 @@ double fft_get_powercap(double powerlimit, double current_powercap,
       new_period = power_data;
     list_data = zlist_next(fft_result->list);
   }
-  if (old_period == 0 || new_period == 0)
-    new_powercap = current_powercap;
   log_message("FFT_BASED_POWER:old powercap %f old_period %f new_period %f ",
               current_powercap, old_period, new_period);
-
+  if (old_period == 0 || new_period == 0){
+    new_powercap = current_powercap;
+  }
+  else{
   double period_diff = old_period - new_period;
   log_message("period_dff %f",period_diff);
   // Positive feedback loop, give more power.
@@ -49,11 +51,12 @@ double fft_get_powercap(double powerlimit, double current_powercap,
     if (period_diff < -2) {
       new_powercap = current_powercap + 50;
     }
-
-  if (new_powercap > powerlimit)
-    new_powercap = powerlimit;
+  }
   if (new_powercap < MIN_GPU_POWER)
     new_powercap=MIN_GPU_POWER;
+  if (new_powercap > powerlimit)
+    new_powercap = powerlimit;
+  log_message("New powercap %f and powerlimit  %f",new_powercap,powerlimit);
   log_message("New powercap %f", new_powercap);
   return new_powercap;
 }

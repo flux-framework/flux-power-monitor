@@ -61,14 +61,15 @@ double redistribute_power(cluster_mgr_t *cluster_mgr, int num_of_devices) {
   while (data != NULL) {
     job_mgr_t *job_data = data->job_pwr_manager;
     printf("data->jobId %ld data->num_of_gpus %d", data->jobId,
-                job_data->num_of_gpus);
+           job_data->num_of_gpus);
     double new_job_powelimit =
         new_per_device_powerlimit * job_data->num_of_gpus;
-    printf("new powerlimit %f \n",new_job_powelimit);
+    printf("new powerlimit %f \n", new_job_powelimit);
     job_mgr_update_powerlimit(job_data, flux_handle, new_job_powelimit);
 
     data = zhashx_next(cluster_mgr->job_hash_table);
   }
+  cluster_mgr->current_power_usage = new_per_device_powerlimit * num_of_devices;
   return new_per_device_powerlimit;
 }
 
@@ -123,36 +124,35 @@ double get_new_job_powerlimit(cluster_mgr_t *cluster_mgr,
 
   double excess_power =
       (cluster_mgr->global_power_budget - cluster_mgr->current_power_usage);
-  printf("excess power %f\n",excess_power);
+  printf("excess power %f\n", excess_power);
   int num_of_requested_devices = 0;
   double powerlimit_job = 0;
   // No access power remaining in the system. Remove power from other jobs.
   for (int i = 0; i < num_of_requested_nodes_count; i++)
     num_of_requested_devices += node_data[i]->num_of_gpus;
-  if (excess_power <=0){
+  if (excess_power <= 0) {
     printf("less power then capacity");
     double new_per_device_powerlimit = redistribute_power(
         cluster_mgr, current_device_utilized + num_of_requested_devices);
     powerlimit_job = new_per_device_powerlimit * num_of_requested_devices;
 
-  }
-  else{
-  double theortical_power_per_device = excess_power / num_of_requested_devices;
+  } else {
+    double theortical_power_per_device =
+        excess_power / num_of_requested_devices;
 
-  // This is the case when power is access or just at max
-  //
-  if (theortical_power_per_device >= MAX_GPU_POWER) {
-    powerlimit_job = MAX_GPU_POWER * num_of_requested_devices;
+    // This is the case when power is access or just at max
+    //
+    if (theortical_power_per_device >= MAX_GPU_POWER) {
+      powerlimit_job = MAX_GPU_POWER * num_of_requested_devices;
+    }
+    // Not sufficient power for each node, each job has to suffer now.
+    // Each job is getting total_pow/total_num_of_nodes.
+    else if (theortical_power_per_device < MAX_GPU_POWER) {
+      double new_per_device_powerlimit = redistribute_power(
+          cluster_mgr, current_device_utilized + num_of_requested_devices);
+      powerlimit_job = new_per_device_powerlimit * num_of_requested_devices;
+    }
   }
-  // Not sufficient power for each node, each job has to suffer now.
-  // Each job is getting total_pow/total_num_of_nodes.
-  else if (theortical_power_per_device < MAX_GPU_POWER) {
-    double new_per_device_powerlimit = redistribute_power(
-        cluster_mgr, current_device_utilized + num_of_requested_devices);
-    powerlimit_job = new_per_device_powerlimit * num_of_requested_devices;
-  }
-  }
-  cluster_mgr->current_power_usage += powerlimit_job;
   return powerlimit_job;
 }
 
@@ -287,9 +287,15 @@ void cluster_mgr_set_global_powerlimit_cb(flux_t *h, flux_msg_handler_t *mh,
     log_message("RPC ERROR powerlimit");
     return;
   }
-  cluster_self_ref->global_power_budget = powerlimit;
-  log_message("Got new power %f", powerlimit);
-  redistribute_power(cluster_self_ref, current_device_utilized);
+  int max_global_powerlimit = cluster_self_ref->num_of_nodes * MAX_GPU_POWER;
+  int min_global_powerlimit = cluster_self_ref->num_of_nodes * MIN_GPU_POWER;
+  if (min_global_powerlimit < powerlimit < max_global_powerlimit) {
+    cluster_self_ref->global_power_budget = powerlimit;
+    redistribute_power(cluster_self_ref, current_device_utilized);
+    cluster_self_ref->global_power_budget = powerlimit;
+    log_message("Got new power %f", powerlimit);
+    redistribute_power(cluster_self_ref, current_device_utilized);
+  }
 }
 void cluster_mgr_set_power_ratio_cb(flux_t *h, flux_msg_handler_t *mh,
                                     const flux_msg_t *msg, void *args) {
@@ -301,3 +307,4 @@ void cluster_mgr_set_power_ratio_cb(flux_t *h, flux_msg_handler_t *mh,
   log_message("Setting Power Ratio of cluster to %d", powerratio);
   // global_power_ratio = powerratio;
 }
+

@@ -139,6 +139,7 @@ void *fft_thread_func(void *args) {
             *result = 0.0f;
             *result_second = 0.0f;
             data->cumulative_sum += data->data_copied_count;
+            log_message("GPU %d",i);
             perform_fft(data->device_data, data->cumulative_sum, result,
                         result_second);
             *fft_size = data->cumulative_sum;

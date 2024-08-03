@@ -19,7 +19,14 @@ void node_manager_new_job_cb(flux_t *h, flux_msg_handler_t *mh,
                              const flux_msg_t *msg, void *args);
 void node_manager_end_job_cb(flux_t *h, flux_msg_handler_t *mh,
                              const flux_msg_t *msg, void *args);
-void nm_test();
+
+
+/**
+ * @brief RPC callback for disabling dynamic power management for node manager.
+ * By default disable dynamic power mangement
+ */
+void node_manager_disable_pm_cb(flux_t *h, flux_msg_handler_t *mh,
+                             const flux_msg_t *msg, void *args);
 /**
  * @brief This function is required as RPC calls in situation where there is one
  * broker and a self RPC call is made. This won't work. A work around we call

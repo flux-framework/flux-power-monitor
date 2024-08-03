@@ -9,7 +9,7 @@ export LD_LIBRARY_PATH=${CRAY_LD_LIBRARY_PATH}:${LD_LIBRARY_PATH}
 
 #LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/tce/packages/cuda/cuda-10.1.243/lib64
  
-flux exec -r all flux module load ../../src/flux_pwr_manager/.libs/pwr_mgr.so
+flux exec -r all flux module load ../src/flux_pwr_manager/.libs/pwr_mgr.so
 flux jobtap load /g/g92/namankul/flux/flux-power-mgr/src/flux_pwr_manager/.libs/libjob_notification.so
 #flux getattr local-uri 
 #sleep inf &

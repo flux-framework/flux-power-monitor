@@ -154,6 +154,7 @@ void flux_pwr_manager_set_powerlimit_cb(flux_t *h, flux_msg_handler_t *mh,
   if (rank == 0) {
     if (min_global_powerlimit < global_powerlimit < max_global_powerlimit) {
       global_power_budget = global_powerlimit;
+
     } else
       goto err;
   }
@@ -288,6 +289,8 @@ static const struct flux_msg_handler_spec htab[] = {
      flux_pwr_manager_get_hostname_cb, 0},
     {FLUX_MSGTYPE_REQUEST, "pwr_mgr.job_notify",
      flux_pwr_manager_job_notification_rpc_cb, 0},
+    {FLUX_MSGTYPE_REQUEST, "pwr_mgr.nm-disable_pm",
+     node_manager_disable_pm_cb, 0},
     {FLUX_MSGTYPE_REQUEST, "pwr_mgr.jobtap_destructor_notify",
      flux_pwr_manager_jobtap_destructor_cb, 0},
     FLUX_MSGHANDLER_TABLE_END,
