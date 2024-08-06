@@ -53,7 +53,7 @@ void node_job_info_destroy(void **job) {
   free(job_info->name);
   for (int i = 0; i < job_info->num_of_devices; i++) {
 
-    if (job_info->power_cap_data[i] != NULL)
+    if (job_info->power_cap_data[job_info->deviceId[i]] != NULL)
 
       retro_queue_buffer_destroy(job_info->power_cap_data[i]);
   }

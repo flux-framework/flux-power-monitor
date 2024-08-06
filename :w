@@ -103,6 +103,8 @@ int node_manager_update_and_set_powercap(node_job_info *job, double powercap,
 int node_manager_cal_and_set_powercap() {
   log_message("FFT state %d enable_dynamic_powercapping %d",fft_enable,enable_dynamic_powercapping);
   if (enable_dynamic_powercapping) {
+
+    log_message("set nodepowercap function");
     pwr_policy_t *data = malloc(sizeof(pwr_policy_t));
     node_job_info *job_data = zhashx_first(current_jobs);
     while (job_data != NULL) {
@@ -110,19 +112,19 @@ int node_manager_cal_and_set_powercap() {
       for (int i = 0; i < job_data->num_of_devices; i++) {
         if (job_data->power_policy_type[job_data->deviceId[i]] == FFT &&
             fft_enable) {
-          // log_message("Power Policy type is FFT");
+          log_message("Power Policy type is FFT");
           fft_pwr_policy_init(data);
         } else {
           continue;
         }
         double job_device_current_powercap = *(double *)zlist_last(
             job_data->power_cap_data[job_data->deviceId[i]]->list);
-        // log_message("job_device current power cap %f",
-        //             job_device_current_powercap);
+        log_message("job_device current power cap %f",
+                    job_device_current_powercap);
         if (job_device_current_powercap == 0)
           continue;
-        // log_message("powerlimit of the job %f",
-        //             job_data->powerlimit[job_data->deviceId[i]]);
+        log_message("powerlimit of the job %f",
+                    job_data->powerlimit[job_data->deviceId[i]]);
         char j_key[LOG_LEN];
         char j_data[LOG_LEN];
         snprintf(j_key, LOG_LEN, "nm_pl_gpu_%d", job_data->deviceId[i]);
@@ -148,7 +150,7 @@ int node_manager_cal_and_set_powercap() {
             job_data->powerlimit[job_data->deviceId[i]],
             job_device_current_powercap,
             job_data->external_power_data_reference[job_data->deviceId[i]]);
-        // log_message("getting new powercap");
+        log_message("getting new powercap");
         snprintf(j_key, LOG_LEN, "new_pcap_%d", job_data->deviceId[i]);
         snprintf(j_data, LOG_LEN, "%f", new_powecap);
         file_logger_add_data_to_buffer(file_log, j_key, strlen(j_key), j_data,
@@ -160,6 +162,7 @@ int node_manager_cal_and_set_powercap() {
                       job_data->jobId, job_data->deviceId[i]);
       }
 
+      log_message("size of current jobs %ld", zhashx_size(current_jobs));
       job_data = zhashx_next(current_jobs);
       if (job_data == NULL)
         break;
@@ -173,8 +176,8 @@ int node_manager_cal_and_set_powercap() {
 
 int node_manager_set_powerlimit(uint64_t jobId, double powerlimit,
                                 int deviceId) {
-  // log_message("setting powercap for host %s device %d and power limit %f",
-              // node_hostname, deviceId, powerlimit);
+  log_message("setting powercap for host %s device %d and power limit %f",
+              node_hostname, deviceId, powerlimit);
   if (powerlimit <= 0)
     return -1;
   node_job_info *job_data = zhashx_lookup(current_jobs, &jobId);

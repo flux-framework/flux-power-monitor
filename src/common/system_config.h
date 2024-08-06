@@ -4,6 +4,6 @@
 #define NUM_OF_MEMS 2
 #define NUM_OF_CPUS 2
 #define MAX_GPU_POWER 300
-#define MIN_GPU_POWER 300
+#define MIN_GPU_POWER 100
 #endif
 

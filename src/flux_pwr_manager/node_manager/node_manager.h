@@ -73,6 +73,7 @@ int node_manager_set_power_ratio(int power_ratio);
  *
  * @return
  */
+void node_manager_enable_disable_dynamic(bool flag);
 void node_manager_manage_power();
 void node_manager_print_fft_result(void);
 

@@ -13,7 +13,6 @@ double fft_get_powercap(double powerlimit, double current_powercap,
                         void *data) {
   if (!data)
     return -1;
-  log_message("powerlimit %f ,current_powercap %f",powerlimit,current_powercap);
   retro_queue_buffer_t *fft_result = (retro_queue_buffer_t *)data;
   if (data == NULL)
     return -1;
@@ -22,6 +21,7 @@ double fft_get_powercap(double powerlimit, double current_powercap,
   double new_period = 0, old_period = 0;
   int size = retro_queue_buffer_get_current_size(fft_result);
   double *list_data = zlist_first(fft_result->list);
+  int power_case=0;
   while (list_data != NULL) {
     counter++;
     double power_data = *list_data;
@@ -31,33 +31,35 @@ double fft_get_powercap(double powerlimit, double current_powercap,
       new_period = power_data;
     list_data = zlist_next(fft_result->list);
   }
-  log_message("FFT_BASED_POWER:old powercap %f old_period %f new_period %f ",
-              current_powercap, old_period, new_period);
   if (old_period == 0 || new_period == 0){
     new_powercap = current_powercap;
+    power_case=0;
   }
   else{
   double period_diff = old_period - new_period;
-  log_message("period_dff %f",period_diff);
-  // Positive feedback loop, give more power.
-  if (period_diff > 2) {
+
+  if (period_diff > 5) {
     new_powercap = current_powercap + 50;
+      power_case=1;
     // Reduce some power, application not that effected by powercap.
   }
-    if (period_diff > -2 && period_diff < 2) {
+    if (period_diff > -5 && period_diff < 5) {
+      power_case=2;
       new_powercap = current_powercap - 50;
     }
     // Too much efffect, application is quite slow, increase power.
-    if (period_diff < -2) {
+    if (period_diff < -5) {
       new_powercap = current_powercap + 50;
+      power_case=3;
     }
   }
-  if (new_powercap < MIN_GPU_POWER)
-    new_powercap=MIN_GPU_POWER;
-  if (new_powercap > powerlimit)
-    new_powercap = powerlimit;
-  log_message("New powercap %f and powerlimit  %f",new_powercap,powerlimit);
-  log_message("New powercap %f", new_powercap);
+  if (new_powercap < MIN_GPU_POWER){
+    power_case=4;
+    new_powercap=MIN_GPU_POWER;}
+  if (new_powercap > powerlimit){
+    power_case=5;
+    new_powercap = powerlimit;}
+  log_message("case:%d, PL: %f, O_p: %f, n_p:%f, O_P_cap:%f, New P_cap:%f, ",power_case,powerlimit,old_period,new_period,current_powercap,new_powercap);
   return new_powercap;
 }
 

@@ -44,6 +44,7 @@ cluster_mgr_t *cluster_mgr_new(flux_t *h, double global_power_budget,
   cluster_mgr->num_of_nodes = cluster_size;
   nodes_in_cluster = cluster_size;
   total_num_of_devices = cluster_size * NUM_OF_GPUS;
+  cluster_mgr->num_of_devices=cluster_size*NUM_OF_GPUS;
   cluster_self_ref = cluster_mgr;
   flux_handle = h;
   return cluster_mgr;
@@ -238,8 +239,10 @@ int cluster_mgr_remove_job(cluster_mgr_t *cluster_mgr, uint64_t jobId) {
   current_device_utilized -= job_map->job_pwr_manager->num_of_gpus;
   // TODO: Should we redistribute power when we remove a job
   current_nodes_utilized -= job_map->job_pwr_manager->num_of_nodes;
+
   log_message("cluster_mgr:remove job");
   zhashx_delete(cluster_mgr->job_hash_table, &job_map->jobId);
+  redistribute_power(cluster_mgr,current_device_utilized);
   return 0;
 }
 
@@ -287,8 +290,8 @@ void cluster_mgr_set_global_powerlimit_cb(flux_t *h, flux_msg_handler_t *mh,
     log_message("RPC ERROR powerlimit");
     return;
   }
-  int max_global_powerlimit = cluster_self_ref->num_of_nodes * MAX_GPU_POWER;
-  int min_global_powerlimit = cluster_self_ref->num_of_nodes * MIN_GPU_POWER;
+  int max_global_powerlimit = cluster_self_ref->num_of_devices * MAX_GPU_POWER;
+  int min_global_powerlimit = cluster_self_ref->num_of_devices * MIN_GPU_POWER;
   if (min_global_powerlimit < powerlimit < max_global_powerlimit) {
     cluster_self_ref->global_power_budget = powerlimit;
     redistribute_power(cluster_self_ref, current_device_utilized);

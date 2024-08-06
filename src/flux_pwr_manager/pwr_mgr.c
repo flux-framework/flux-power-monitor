@@ -96,10 +96,10 @@ static void timer_handler(flux_reactor_t *r, flux_watcher_t *w, int revents,
   // collect data from each job and in turn each job collect data for each node.
 
   // node_manager_print_fft_result();
-  int flag=1;
-  if(flag==1){
+  int flag = 1;
+  if (flag == 1) {
     log_message("setting powercap for each node");
-  node_manager_manage_power();
+    node_manager_manage_power();
   }
 }
 void flux_pwr_manager_get_hostname_cb(flux_t *h, flux_msg_handler_t *mh,
@@ -244,7 +244,7 @@ void flux_pwr_manager_job_notification_rpc_cb(flux_t *h, flux_msg_handler_t *mh,
   if (flux_future_then(f, -1., handle_jobtap_nodelist_rpc, topic) < 0) {
     log_message(
         "RPC_INFO:Error in setting flux_future_then for RPC get_node_power");
-    flux_future_destroy(f); 
+    flux_future_destroy(f);
   }
 }
 
@@ -273,131 +273,158 @@ void flux_pwr_manager_jobtap_destructor_cb(flux_t *h, flux_msg_handler_t *mh,
   // DO whatever we have to do when jobtap is down
   //
 }
-static const struct flux_msg_handler_spec htab[] = {
-    {FLUX_MSGTYPE_REQUEST, "pwr_mgr.set_global_powerlimit",
-     flux_pwr_manager_set_powerlimit_cb, 0},
-    {FLUX_MSGTYPE_REQUEST, "pwr_mgr.nm-new_job", node_manager_new_job_cb, 0},
-    {FLUX_MSGTYPE_REQUEST, "pwr_mgr.nm-set_pl", node_manager_set_pl_cb, 0},
-    {FLUX_MSGTYPE_REQUEST, "pwr_mgr.nm-end_job", node_manager_end_job_cb, 0},
-    {FLUX_MSGTYPE_REQUEST, "pwr_mgr.jm-get_pwr_node", node_manager_end_job_cb,
-     0},
-    {FLUX_MSGTYPE_REQUEST, "pwr_mgr.cm-set_powerratio",
-     cluster_mgr_set_power_ratio_cb, 0},
-    {FLUX_MSGTYPE_REQUEST, "pwr_mgr.cm-set_global_pl",
-     cluster_mgr_set_global_powerlimit_cb, 0},
-    {FLUX_MSGTYPE_REQUEST, "pwr_mgr.get_hostname",
-     flux_pwr_manager_get_hostname_cb, 0},
-    {FLUX_MSGTYPE_REQUEST, "pwr_mgr.job_notify",
-     flux_pwr_manager_job_notification_rpc_cb, 0},
-    {FLUX_MSGTYPE_REQUEST, "pwr_mgr.nm-disable_pm",
-     node_manager_disable_pm_cb, 0},
-    {FLUX_MSGTYPE_REQUEST, "pwr_mgr.jobtap_destructor_notify",
-     flux_pwr_manager_jobtap_destructor_cb, 0},
-    FLUX_MSGHANDLER_TABLE_END,
-};
 
-int mod_main(flux_t *h, int argc, char **argv) {
-  int rc = 0;
-  flux_get_rank(h, &rank);
-  flux_get_size(h, &size);
+void flux_pwr_manager_disable_pm_cb(flux_t *h, flux_msg_handler_t *mh,
+                                    const flux_msg_t *msg, void *args) {
 
-  init_flux_pwr_logging(h);
-  flux_handler = h;
-  if (size == 0)
-    return -1;
-  // log_message( "QQQ %s:%d Hello from rank %d of %d.\n", __FILE__,
-  // __LINE__, rank, size);
-  if (rank == 0) {
+  bool flag;
+  if (flux_request_unpack(msg, NULL, "{s:b}", "flag", &flag) < 0) {
+    log_error("RPC_ERROR:Unpacking jobtap destructor");
   }
-  max_global_powerlimit = size * MAX_NODE_POWER;
-  min_global_powerlimit = size * MIN_NODE_POWER;
-  if (max_global_powerlimit == 0 || min_global_powerlimit == 0) {
-    rc = -1;
-    goto done;
-  }
-  global_power_budget = max_global_powerlimit;
-  gethostname(node_hostname, HOSTNAME_SIZE);
-  if (rank == 0) {
-    current_cluster_mgr = cluster_mgr_new(h, global_power_budget, size);
-    if (hostname_list == NULL) {
-      hostname_list = malloc(sizeof(char *) * size);
-      if (hostname_list == NULL) {
-        log_error("Unable to allocate memory for hostname_list");
-        rc = -1;
-        goto done;
+  log_message("new_data %d", flag);
+  for (int i = 0; i < size; i++) {
+    log_message("i %d",i);
+    if (i == 0) {
+    log_message("i %d flag:%d",i,flag);
+      node_manager_enable_disable_dynamic(flag);
+    } else {
+    log_message("i %d flag:%d",i,flag);
+      if (flux_rpc_pack(h, "pwr_mgr.nm-disable_pm", i,
+                        FLUX_RPC_NORESPONSE, // int flags (FLUX_RPC_NORESPONSE,,
+                        "{s:b}", "flag", flag) < 0) {
+        log_error("RPC ERROR");
       }
     }
-    cluster_mgr_add_hostname(0, node_hostname);
-    for (int i = 1; i < size; i++)
-      hostname_list[i] = NULL;
-
-    hostname_list[0] = strdup(node_hostname);
-    log_message("node hostname %s", hostname_list[0]);
   }
-  // We don't have easy access to the topology of the underlying flux network,
-  // so we'll set up an overlay instead.
-  // dag[UPSTREAM] = (rank == 0) ? -1 : rank / 2;
-  // dag[DOWNSTREAM1] = (rank >= size / 2) ? -1 : rank * 2;
-  // dag[DOWNSTREAM2] = (rank >= size / 2) ? -1 : rank * 2 + 1;
-  // if (rank == size / 2 && size % 2) {
-  //   // If we have an odd size then rank size/2 only gets a single child.
-  //   dag[DOWNSTREAM2] = -1;
-  // }
-  if (rank == 0) {
-  }
-  flux_msg_handler_t **handlers = NULL;
-  // Let all ranks set this up.
-  if (flux_msg_handler_addvec(h, htab, NULL, &handlers) < 0) {
-    log_error("Flux msg_handler addvec error");
-    rc = -1;
-    goto done;
-  }
-  if (flux_rpc_pack(h,                      // flux_t *h
-                    "pwr_mgr.get_hostname", // char *topic
-                    0,                      // uint32_t nodeid (FLUX_NODEID_ANY,
-                    FLUX_RPC_NORESPONSE,    // int flags (FLUX_RPC_NORESPONSE,,
-                    "{s:I s:s}", "rank", rank, "hostname", node_hostname) < 0) {
-    log_error("RPC_ERROR:Unable to get hostname");
-    rc = -1;
-    goto done;
-  }
-  // All ranks set a handler for the timer.
-  flux_watcher_t *timer_watch_p = flux_timer_watcher_create(
-      flux_get_reactor(h), 60.0, 60.0, timer_handler, h);
-  if (timer_watch_p == NULL) {
-    rc = -1;
-    goto done;
-  }
-  flux_watcher_start(timer_watch_p);
-  log_message("POST execution 0");
-  node_manager_init(h, rank, size, node_hostname, SAMPLING_RATE * BUFFER_SIZE,
-                    SAMPLING_RATE);
-  // node_manager_init(h, rank, size, node_hostname, 10,
-  //                   SAMPLING_RATE);
-  log_message("POST execution 1");
-
-  // Run!
-  if (flux_reactor_run(flux_get_reactor(h), 0) < 0) {
-    log_error("FLUX_REACTOR_RUN");
-    rc = -1;
-    log_message("We are done");
-    goto done;
-  }
-  log_message("POST execution 2");
-done:
-  // On unload, shutdown the handlers.
-  if (rank == 0) {
-    cluster_mgr_destroy(&current_cluster_mgr);
-    for (int i = 0; i < size; i++) {
-      if (hostname_list[i] != NULL)
-        free(hostname_list[i]);
-    }
-    printf("Freeing the hostname_list\n");
-    free(hostname_list);
-    // free(current_power_strategy);
-    flux_msg_handler_delvec(handlers);
-  }
-  node_manager_destructor();
-  return rc;
 }
-MOD_NAME(MY_MOD_NAME);
+  static const struct flux_msg_handler_spec htab[] = {
+      {FLUX_MSGTYPE_REQUEST, "pwr_mgr.set_global_powerlimit",
+       flux_pwr_manager_set_powerlimit_cb, 0},
+      {FLUX_MSGTYPE_REQUEST, "pwr_mgr.nm-new_job", node_manager_new_job_cb, 0},
+      {FLUX_MSGTYPE_REQUEST, "pwr_mgr.nm-set_pl", node_manager_set_pl_cb, 0},
+      {FLUX_MSGTYPE_REQUEST, "pwr_mgr.nm-end_job", node_manager_end_job_cb, 0},
+      {FLUX_MSGTYPE_REQUEST, "pwr_mgr.jm-get_pwr_node", node_manager_end_job_cb,
+       0},
+      {FLUX_MSGTYPE_REQUEST, "pwr_mgr.cm-set_powerratio",
+       cluster_mgr_set_power_ratio_cb, 0},
+      {FLUX_MSGTYPE_REQUEST, "pwr_mgr.cm-set_global_pl",
+       cluster_mgr_set_global_powerlimit_cb, 0},
+      {FLUX_MSGTYPE_REQUEST, "pwr_mgr.get_hostname",
+       flux_pwr_manager_get_hostname_cb, 0},
+      {FLUX_MSGTYPE_REQUEST, "pwr_mgr.job_notify",
+       flux_pwr_manager_job_notification_rpc_cb, 0},
+      {FLUX_MSGTYPE_REQUEST, "pwr_mgr.nm-disable_pm",
+       node_manager_disable_pm_cb, 0},
+      {FLUX_MSGTYPE_REQUEST, "pwr_mgr.disable_pm",
+       flux_pwr_manager_disable_pm_cb, 0},
+      {FLUX_MSGTYPE_REQUEST, "pwr_mgr.jobtap_destructor_notify",
+       flux_pwr_manager_jobtap_destructor_cb, 0},
+      FLUX_MSGHANDLER_TABLE_END,
+  };
+
+  int mod_main(flux_t * h, int argc, char **argv) {
+    int rc = 0;
+    flux_get_rank(h, &rank);
+    flux_get_size(h, &size);
+
+    init_flux_pwr_logging(h);
+    flux_handler = h;
+    if (size == 0)
+      return -1;
+    // log_message( "QQQ %s:%d Hello from rank %d of %d.\n", __FILE__,
+    // __LINE__, rank, size);
+    if (rank == 0) {
+    }
+    max_global_powerlimit = size * MAX_NODE_POWER;
+    min_global_powerlimit = size * MIN_NODE_POWER;
+    if (max_global_powerlimit == 0 || min_global_powerlimit == 0) {
+      rc = -1;
+      goto done;
+    }
+    global_power_budget = max_global_powerlimit;
+    gethostname(node_hostname, HOSTNAME_SIZE);
+    if (rank == 0) {
+      current_cluster_mgr = cluster_mgr_new(h, global_power_budget, size);
+      if (hostname_list == NULL) {
+        hostname_list = malloc(sizeof(char *) * size);
+        if (hostname_list == NULL) {
+          log_error("Unable to allocate memory for hostname_list");
+          rc = -1;
+          goto done;
+        }
+      }
+      cluster_mgr_add_hostname(0, node_hostname);
+      for (int i = 1; i < size; i++)
+        hostname_list[i] = NULL;
+
+      hostname_list[0] = strdup(node_hostname);
+      log_message("node hostname %s", hostname_list[0]);
+    }
+    // We don't have easy access to the topology of the underlying flux network,
+    // so we'll set up an overlay instead.
+    // dag[UPSTREAM] = (rank == 0) ? -1 : rank / 2;
+    // dag[DOWNSTREAM1] = (rank >= size / 2) ? -1 : rank * 2;
+    // dag[DOWNSTREAM2] = (rank >= size / 2) ? -1 : rank * 2 + 1;
+    // if (rank == size / 2 && size % 2) {
+    //   // If we have an odd size then rank size/2 only gets a single child.
+    //   dag[DOWNSTREAM2] = -1;
+    // }
+    if (rank == 0) {
+    }
+    flux_msg_handler_t **handlers = NULL;
+    // Let all ranks set this up.
+    if (flux_msg_handler_addvec(h, htab, NULL, &handlers) < 0) {
+      log_error("Flux msg_handler addvec error");
+      rc = -1;
+      goto done;
+    }
+    if (flux_rpc_pack(h,                      // flux_t *h
+                      "pwr_mgr.get_hostname", // char *topic
+                      0,                   // uint32_t nodeid (FLUX_NODEID_ANY,
+                      FLUX_RPC_NORESPONSE, // int flags (FLUX_RPC_NORESPONSE,,
+                      "{s:I s:s}", "rank", rank, "hostname",
+                      node_hostname) < 0) {
+      log_error("RPC_ERROR:Unable to get hostname");
+      rc = -1;
+      goto done;
+    }
+    // All ranks set a handler for the timer.
+    flux_watcher_t *timer_watch_p = flux_timer_watcher_create(
+        flux_get_reactor(h), 60.0, 60.0, timer_handler, h);
+    if (timer_watch_p == NULL) {
+      rc = -1;
+      goto done;
+    }
+    flux_watcher_start(timer_watch_p);
+    log_message("POST execution 0");
+    node_manager_init(h, rank, size, node_hostname, SAMPLING_RATE * BUFFER_SIZE,
+                      SAMPLING_RATE);
+    // node_manager_init(h, rank, size, node_hostname, 10,
+    //                   SAMPLING_RATE);
+    log_message("POST execution 1");
+
+    // Run!
+    if (flux_reactor_run(flux_get_reactor(h), 0) < 0) {
+      log_error("FLUX_REACTOR_RUN");
+      rc = -1;
+      log_message("We are done");
+      goto done;
+    }
+    log_message("POST execution 2");
+  done:
+    // On unload, shutdown the handlers.
+    if (rank == 0) {
+      cluster_mgr_destroy(&current_cluster_mgr);
+      for (int i = 0; i < size; i++) {
+        if (hostname_list[i] != NULL)
+          free(hostname_list[i]);
+      }
+      printf("Freeing the hostname_list\n");
+      free(hostname_list);
+      // free(current_power_strategy);
+      flux_msg_handler_delvec(handlers);
+    }
+    node_manager_destructor();
+    return rc;
+  }
+  MOD_NAME(MY_MOD_NAME);

@@ -14,6 +14,7 @@ typedef struct {
   int num_of_jobs;
   zhashx_t *job_hash_table;
   uint64_t num_of_nodes;
+  uint64_t num_of_devices;
 } cluster_mgr_t;
 
 /**

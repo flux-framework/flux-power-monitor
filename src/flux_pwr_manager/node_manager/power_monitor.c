@@ -266,11 +266,11 @@ int power_monitor_set_node_powercap(double powercap, int gpu_id) {
   // snprintf(command, sizeof(command), "sudo nvidia-smi -pl %f -i %d",
   // powercap, gpu_id);
   int powercap_int = (int)round(powercap);
-  log_message("powercapping GPU ID: %d with value d", gpu_id, powercap);
+  log_message("GPUID: %d pcap: %d", gpu_id, powercap_int);
   snprintf(command, sizeof(command),
            "sudo /admin/scripts/nv_powercap -p  %d -i %d", powercap_int,
            gpu_id);
-
+  // return 0;
   return system(command);
 }
 // return variorum_cap_best_effort_node_power_limit(powercap);

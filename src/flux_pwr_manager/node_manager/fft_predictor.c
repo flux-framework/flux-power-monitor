@@ -43,7 +43,7 @@ void copy_node_power_to_fftw_callback(void *item, void *user_data) {
 
 // FFT computation function
 void perform_fft(fftw_complex *data, size_t data_size, double *result_first,
-                 double *result_second) {
+                 double *result_second,int GPUID) {
   fftw_complex *out =
       (fftw_complex *)fftw_malloc(sizeof(fftw_complex) * data_size);
   fftw_plan p =
@@ -81,12 +81,11 @@ void perform_fft(fftw_complex *data, size_t data_size, double *result_first,
   double second_Titer = 1 / second_dominant_frequency;
   *result_first = Titer;
 
-  log_message("Dominant Frequency: %f Hz, Titer: %f seconds\n",
-              dominant_frequency, Titer);
+  log_message("GPU:%d Titer: %f seconds,fft_size %ld \n",GPUID,
+               Titer,data_size);
   *result_second = second_Titer;
-  log_message("Second Dominant Frequency: %f Hz, Titer: %f seconds\n",
-              second_dominant_frequency, second_Titer);
-  log_message("fft size %ld", data_size);
+  // log_message("Second Dominant Frequency: %f Hz, Titer: %f seconds and fft_size %d\n",
+  //             second_dominant_frequency, second_Titer,data_size);
   //
   fftw_destroy_plan(p);
   fftw_free(out);
@@ -139,9 +138,8 @@ void *fft_thread_func(void *args) {
             *result = 0.0f;
             *result_second = 0.0f;
             data->cumulative_sum += data->data_copied_count;
-            log_message("GPU %d",i);
             perform_fft(data->device_data, data->cumulative_sum, result,
-                        result_second);
+                        result_second,i);
             *fft_size = data->cumulative_sum;
             data->data_copied_count = 0;
             // perform_fft(data->device_data,
@@ -311,7 +309,6 @@ void fft_predictor_finish_job(uint64_t jobId) {
 void fft_predictor_reset(int gpuid) {
   pthread_mutex_lock(&fft_mutex);
   fft_tracker_t *data = fft_job_data[gpuid];
-  log_message("RESET GPU for GPUID=%d", gpuid);
 
   // Reset the FFT buffer when power changes.
   memset(data->device_data, 0, sizeof(FFT_BUFFER_SIZE));
@@ -323,7 +320,6 @@ void fft_predictor_reset(int gpuid) {
   data->buffer_marker_list =
       (node_power *)zlist_tail(node_power_data->node_power_time->list);
   pthread_mutex_unlock(&node_power_data->node_power_time->mutex);
-  log_message("RESET GPU for GPUID=%d", gpuid);
 
   pthread_mutex_unlock(&fft_mutex);
 }
