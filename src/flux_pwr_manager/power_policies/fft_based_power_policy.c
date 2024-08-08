@@ -76,3 +76,6 @@ void fft_pwr_policy_init(pwr_policy_t *pwr_policy) {
   pwr_policy->get_power_dist = fft_get_power_dist;
   pwr_policy->get_powercap = fft_get_powercap;
 }
+void fft_pwr_policy_destroy(){
+
+}

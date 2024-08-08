@@ -3,6 +3,7 @@
 #include "node_data.h"
 #include "parse_util.h"
 #include "power_policies/power_policy.h"
+#include "power_policies/policy_mgr.h"
 #include "retro_queue_buffer.h"
 #include <czmq.h>
 typedef struct node_job_info {
@@ -18,7 +19,7 @@ typedef struct node_job_info {
       *external_power_data_reference[12]; // External reference does not own
                                           // comes from some system. Do not free
   retro_queue_buffer_t *power_cap_data[12];
-
+  pwr_policy_t *node_job_power_mgr[12]; // Right now putting power policy for each job
 } node_job_info;
 node_job_info *node_job_info_create(uint64_t jobId, char *job_cwd,
                                     node_device_info_t *device_data,

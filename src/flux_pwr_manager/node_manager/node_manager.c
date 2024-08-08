@@ -103,15 +103,18 @@ int node_manager_update_and_set_powercap(node_job_info *job, double powercap,
 int node_manager_cal_and_set_powercap() {
   log_message("FFT state %d enable_dynamic_powercapping %d",fft_enable,enable_dynamic_powercapping);
   if (enable_dynamic_powercapping) {
-    pwr_policy_t *data = malloc(sizeof(pwr_policy_t));
     node_job_info *job_data = zhashx_first(current_jobs);
     while (job_data != NULL) {
 
       for (int i = 0; i < job_data->num_of_devices; i++) {
+        pwr_policy_t *policy;
         if (job_data->power_policy_type[job_data->deviceId[i]] == FFT &&
             fft_enable) {
+            policy=job_data->node_job_power_mgr[job_data->deviceId[i]]; 
+          if (policy==NULL)
+            continue;
           // log_message("Power Policy type is FFT");
-          fft_pwr_policy_init(data);
+      // pwr_policy_t *data = pwr_policy_new(FFT);
         } else {
           continue;
         }

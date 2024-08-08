@@ -1,10 +1,11 @@
-#include "power_policies/power_policy.h"
 #if HAVE_CONFIG_H
 #include "config.h"
 #endif
 #include "constants.h"
 #include "flux_pwr_logging.h"
 #include "node_job_info.h"
+#include "power_policies/policy_mgr.h"
+#include "power_policies/power_policy.h"
 node_job_info *node_job_info_create(uint64_t jobId, char *job_cwd,
                                     node_device_info_t *device_data,
                                     char *job_name) {
@@ -24,8 +25,16 @@ node_job_info *node_job_info_create(uint64_t jobId, char *job_cwd,
   for (int i = 0; i < device_data->num_of_gpus; i++) {
     job_info->external_power_data_reference[job_info->deviceId[i]] = NULL;
     job_info->power_policy_type[job_info->deviceId[i]] = FFT;
-  }
+    pwr_policy_t *t = NULL;
+    if (job_info->power_policy_type[job_info->deviceId[i]] == FFT) {
+      t = pwr_policy_new(FFT);
+      if (t == NULL) {
+        log_error("Unable to allocate memory for pwr_policy");
+      }
+    }
 
+    job_info->node_job_power_mgr[job_info->deviceId[i]] = t;
+  }
   return job_info;
 }
 node_job_info *node_job_info_copy(node_job_info *data) {
@@ -40,7 +49,9 @@ node_job_info *node_job_info_copy(node_job_info *data) {
     new_data->deviceId[i] = data->deviceId[i];
     new_data->device_type[i] = 1;
     // This is for power tracker to just have information about the job. It does
-    // not require the information about powercap history; may need to change later.
+    // not require the information about powercap history; may need to change
+    // later.
+    new_data->node_job_power_mgr[new_data->deviceId[i]]=NULL;
     new_data->power_cap_data[new_data->deviceId[i]] = NULL;
   }
   return new_data;
@@ -52,7 +63,9 @@ void node_job_info_destroy(void **job) {
   free(job_info->job_cwd);
   free(job_info->name);
   for (int i = 0; i < job_info->num_of_devices; i++) {
-
+    if (job_info->node_job_power_mgr[i]!=NULL){
+      pwr_policy_destroy(&(job_info->node_job_power_mgr[i]));
+    }
     if (job_info->power_cap_data[job_info->deviceId[i]] != NULL)
 
       retro_queue_buffer_destroy(job_info->power_cap_data[i]);
