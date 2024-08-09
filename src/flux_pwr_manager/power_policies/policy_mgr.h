@@ -13,7 +13,6 @@ typedef struct power_strategy {
   retro_queue_buffer_t* powercap_history;  
   retro_queue_buffer_t* powerlimit_history;  
   retro_queue_buffer_t* time_history;
-  Logger *logger;
   bool converged;
 } pwr_policy_t;
 pwr_policy_t *pwr_policy_new(POWER_POLICY_TYPE policy_type);
