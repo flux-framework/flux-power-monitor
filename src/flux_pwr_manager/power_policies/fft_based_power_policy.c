@@ -8,6 +8,7 @@
 #include <czmq.h>
 #include <math.h>
 
+#define LOG_LEN_1 100
 double powercap_data[3] = {10.f, 25.f, 50.f};
 double converge_time = 2.0f;
 double decrease_threashold = 50;
@@ -144,6 +145,25 @@ double fft_get_powercap(pwr_policy_t *mgr, double powerlimit,
   retro_queue_buffer_push(mgr->powercap_history, p_cap_data);
   retro_queue_buffer_push(mgr->powerlimit_history, p_limit_data);
   retro_queue_buffer_push(mgr->time_history, period);
+
+  char j_key[LOG_LEN_1];
+  char j_data[LOG_LEN_1];
+  snprintf(j_key, LOG_LEN_1, "GPU ID_%d_old_fft_period", mgr->deviceId);
+  snprintf(j_data, LOG_LEN_1, "%f", old_period_1);
+  file_logger_add_data_to_buffer(mgr->file_log, j_key, strlen(j_key), j_data,
+                                 strlen(j_data));
+  snprintf(j_key, LOG_LEN_1, "GPU ID_%d_new_fft_period", mgr->deviceId);
+  snprintf(j_data, LOG_LEN_1, "%f", new_period);
+  file_logger_add_data_to_buffer(mgr->file_log, j_key, strlen(j_key), j_data,
+                                 strlen(j_data));
+  snprintf(j_key, LOG_LEN_1, "GPU ID_%d_o_pcap", mgr->deviceId);
+  snprintf(j_data, LOG_LEN_1, "%f", current_powercap);
+  file_logger_add_data_to_buffer(mgr->file_log, j_key, strlen(j_key), j_data,
+                                 strlen(j_data));
+  snprintf(j_key, LOG_LEN_1, "GPU ID_%d_new_pcap", mgr->deviceId);
+  snprintf(j_data, LOG_LEN_1, "%f", new_powercap);
+  file_logger_add_data_to_buffer(mgr->file_log, j_key, strlen(j_key), j_data,
+                                 strlen(j_data));
   log_message("Poilcy: %f, PL: %f, O_p: %f, n_p:%f, O_P_cap:%f, New P_cap:%f, ",
               new_powercap_1, powerlimit, old_period_1, new_period,
               current_powercap, new_powercap);

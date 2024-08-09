@@ -8,7 +8,7 @@
 #include "power_policies/power_policy.h"
 node_job_info *node_job_info_create(uint64_t jobId, char *job_cwd,
                                     node_device_info_t *device_data,
-                                    char *job_name) {
+                                    char *job_name,Logger *file_log) {
   if (jobId == 0 || job_cwd == NULL || device_data == NULL)
     return NULL;
   node_job_info *job_info = calloc(1, sizeof(node_job_info));
@@ -27,7 +27,7 @@ node_job_info *node_job_info_create(uint64_t jobId, char *job_cwd,
     job_info->power_policy_type[job_info->deviceId[i]] = FFT;
     pwr_policy_t *t = NULL;
     if (job_info->power_policy_type[job_info->deviceId[i]] == FFT) {
-      t = pwr_policy_new(FFT);
+      t = pwr_policy_new(FFT,file_log,job_info->deviceId[i]);
       log_message("NEW t for device %d",job_info->deviceId[i]);
       if (t == NULL) {
         log_error("Unable to allocate memory for pwr_policy");

@@ -5,6 +5,7 @@
 #include "power_policies/power_policy.h"
 #include "power_policies/policy_mgr.h"
 #include "retro_queue_buffer.h"
+#include "file_logger.h"
 #include <czmq.h>
 typedef struct node_job_info {
   char *name;
@@ -23,7 +24,7 @@ typedef struct node_job_info {
 } node_job_info;
 node_job_info *node_job_info_create(uint64_t jobId, char *job_cwd,
                                     node_device_info_t *device_data,
-                                    char *job_name);
+                                    char *job_name,Logger *file_log);
 void node_job_info_destroy(void **node_job_info);
 node_job_info *node_job_info_copy(node_job_info *data);
 void node_job_info_reset_power_data(node_job_info *job_data,int deviceId,double powerlimit);

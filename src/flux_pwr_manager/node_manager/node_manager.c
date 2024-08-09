@@ -128,12 +128,6 @@ int node_manager_cal_and_set_powercap() {
         //             job_data->powerlimit[job_data->deviceId[i]]);
         char j_key[LOG_LEN];
         char j_data[LOG_LEN];
-        snprintf(j_key, LOG_LEN, "nm_pl_gpu_%d", job_data->deviceId[i]);
-        snprintf(j_data, LOG_LEN, "%f",
-                 job_data->powerlimit[job_data->deviceId[i]]);
-        file_logger_add_data_to_buffer(file_log, j_key, strlen(j_key), j_data,
-                                       strlen(j_data));
-        snprintf(j_key, LOG_LEN, "fft_time_gpu_%d", job_data->deviceId[i]);
         double period = -1.0f;
         if (retro_queue_buffer_get_current_size(
                 job_data
@@ -144,18 +138,11 @@ int node_manager_cal_and_set_powercap() {
                   ->list);
           period = *p;
         }
-        snprintf(j_data, LOG_LEN, "%f", period);
-        file_logger_add_data_to_buffer(file_log, j_key, strlen(j_key), j_data,
-                                       strlen(j_data));
         double new_powecap = policy->get_powercap(policy,
             job_data->powerlimit[job_data->deviceId[i]],
             job_device_current_powercap,
             job_data->external_power_data_reference[job_data->deviceId[i]]);
         // log_message("getting new powercap");
-        snprintf(j_key, LOG_LEN, "new_pcap_%d", job_data->deviceId[i]);
-        snprintf(j_data, LOG_LEN, "%f", new_powecap);
-        file_logger_add_data_to_buffer(file_log, j_key, strlen(j_key), j_data,
-                                       strlen(j_data));
         if (node_manager_update_and_set_powercap(job_data, new_powecap,
 
                                                  job_data->deviceId[i]) < 0)
@@ -234,7 +221,7 @@ int node_manager_new_job(uint64_t jobId, char *job_cwd, char *job_name,
                          node_device_info_t *device_data) {
 
   node_job_info *data =
-      node_job_info_create(jobId, job_cwd, device_data, job_name);
+      node_job_info_create(jobId, job_cwd, device_data, job_name,file_log);
   if (data == NULL)
     return -1;
   // Dynamic memory important.

@@ -6,7 +6,7 @@
 #include "policy_mgr.h"
 #include "uniform_pwr_policy.h"
 #define POWER_HISTORY_BUFFER 100
-pwr_policy_t *pwr_policy_new(POWER_POLICY_TYPE policy_type){
+pwr_policy_t *pwr_policy_new(POWER_POLICY_TYPE policy_type,Logger *log,int deviceId){
   pwr_policy_t *mgr = malloc(sizeof(pwr_policy_t));
   if (mgr == NULL)
     return NULL;
@@ -15,10 +15,12 @@ pwr_policy_t *pwr_policy_new(POWER_POLICY_TYPE policy_type){
   } else if (policy_type == UNIFORM) {
     uniform_pwr_policy_init(mgr);
   }
+  mgr->deviceId=deviceId;
   mgr->powercap_history=retro_queue_buffer_new(POWER_HISTORY_BUFFER,free);
   mgr->powerlimit_history=retro_queue_buffer_new(POWER_HISTORY_BUFFER,free);
   mgr->time_history=retro_queue_buffer_new(POWER_HISTORY_BUFFER,free);
   mgr->converged=false;
+  mgr->file_log=log ;
   if (mgr->powerlimit_history==NULL || mgr->powercap_history==NULL || mgr->time_history==NULL)
     return NULL;
   return mgr;
