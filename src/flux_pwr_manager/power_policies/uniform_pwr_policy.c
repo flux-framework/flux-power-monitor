@@ -4,11 +4,12 @@
 #include "uniform_pwr_policy.h"
 #include "retro_queue_buffer.h"
 #include "system_config.h"
-double uniform_get_powercap(double powerlimit, double current_powercap,
+double uniform_get_powercap(pwr_policy_t* mgr,double powerlimit, double current_powercap,
                         void *data) {
   if (!data)
     return -1;
-  retro_queue_buffer_t *fft_result = (retro_queue_buffer_t *)data;}
+  return powerlimit; 
+  }
 double uniform_get_power_dist(int num_of_elements, pwr_stats_t *stats,
                                double pwr_avail, double pwr_used,
                                double *result) {

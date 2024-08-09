@@ -26,4 +26,5 @@ node_job_info *node_job_info_create(uint64_t jobId, char *job_cwd,
                                     char *job_name);
 void node_job_info_destroy(void **node_job_info);
 node_job_info *node_job_info_copy(node_job_info *data);
+void node_job_info_reset_power_data(node_job_info *job_data,int deviceId,double powerlimit);
 #endif

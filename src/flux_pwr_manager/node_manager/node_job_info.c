@@ -28,11 +28,13 @@ node_job_info *node_job_info_create(uint64_t jobId, char *job_cwd,
     pwr_policy_t *t = NULL;
     if (job_info->power_policy_type[job_info->deviceId[i]] == FFT) {
       t = pwr_policy_new(FFT);
+      log_message("NEW t for device %d",job_info->deviceId[i]);
       if (t == NULL) {
         log_error("Unable to allocate memory for pwr_policy");
       }
     }
 
+     log_message("Setting t");
     job_info->node_job_power_mgr[job_info->deviceId[i]] = t;
   }
   return job_info;
@@ -72,4 +74,22 @@ void node_job_info_destroy(void **job) {
   }
   free(job_info);
   job_info = NULL;
+}
+
+void node_job_info_reset_power_data(node_job_info *job_data,int deviceId,double powerlimit){
+  if(job_data==NULL)
+    return;
+  log_message("resetting for Device Id %d",deviceId);
+  if(job_data->node_job_power_mgr[deviceId]==NULL){
+    log_error("Power Manager not initalized");
+    return;
+  }
+  pwr_policy_t* mgr=job_data->node_job_power_mgr[deviceId];
+  zlist_purge(mgr->powercap_history->list);
+  double *a=malloc(sizeof(double));
+  double *b=malloc(sizeof(double));
+  *a=powerlimit;
+  *b=powerlimit;
+  retro_queue_buffer_push(mgr->powercap_history,a);
+  retro_queue_buffer_push(mgr->powerlimit_history,a);
 }

@@ -147,7 +147,7 @@ int node_manager_cal_and_set_powercap() {
         snprintf(j_data, LOG_LEN, "%f", period);
         file_logger_add_data_to_buffer(file_log, j_key, strlen(j_key), j_data,
                                        strlen(j_data));
-        double new_powecap = data->get_powercap(
+        double new_powecap = policy->get_powercap(policy,
             job_data->powerlimit[job_data->deviceId[i]],
             job_device_current_powercap,
             job_data->external_power_data_reference[job_data->deviceId[i]]);
@@ -167,13 +167,12 @@ int node_manager_cal_and_set_powercap() {
       if (job_data == NULL)
         break;
     }
-    free(data);
     return 0;
   } else {
     log_message("dynamic powercapping disabled");
+    return 0;
   }
 }
-
 int node_manager_set_powerlimit(uint64_t jobId, double powerlimit,
                                 int deviceId) {
   // log_message("setting powercap for host %s device %d and power limit %f",
@@ -183,9 +182,8 @@ int node_manager_set_powerlimit(uint64_t jobId, double powerlimit,
   node_job_info *job_data = zhashx_lookup(current_jobs, &jobId);
   if (job_data == NULL)
     return -1;
-
   job_data->powerlimit[deviceId] = powerlimit;
-
+  node_job_info_reset_power_data(job_data, deviceId, powerlimit);
   if (node_manager_update_and_set_powercap(job_data, powerlimit, deviceId) < 0)
     return -1;
   return 0;
@@ -344,7 +342,6 @@ void node_manager_new_job_cb(flux_t *h, flux_msg_handler_t *mh,
     snprintf(j_data, LOG_LEN, "%f", powerlimit_data[i]);
     file_logger_add_data_to_buffer(file_log, j_key, strlen(j_key), j_data,
                                    strlen(j_data));
-
     if ((node_manager_set_powerlimit(jobId, powerlimit_data[i],
                                      device_data->device_id_gpus[i]) < 0))
       log_error("ERROR in setting rank %d , device %d node power settings",

@@ -390,7 +390,7 @@ void flux_pwr_manager_disable_pm_cb(flux_t *h, flux_msg_handler_t *mh,
     }
     // All ranks set a handler for the timer.
     flux_watcher_t *timer_watch_p = flux_timer_watcher_create(
-        flux_get_reactor(h), 60.0, 60.0, timer_handler, h);
+        flux_get_reactor(h), 90.0, 90.0, timer_handler, h);
     if (timer_watch_p == NULL) {
       rc = -1;
       goto done;
