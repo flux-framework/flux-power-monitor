@@ -8,8 +8,6 @@
 #include <czmq.h>
 #include <math.h>
 
-#include "file_logger.h"
-Logger *file_log = NULL;
 double powercap_data[3] = {10.f, 25.f, 50.f};
 double converge_time = 2.0f;
 double decrease_threashold = 50;
