@@ -71,7 +71,7 @@ double get_new_powercap(pwr_policy_t *mgr, double powerlimit,
   double time_delta = new_period - old_period;
   double abs_delta = fabs(time_delta);
   if (abs_delta < converge_time) {
-    double *temp_2 = get_second_last_zlist_element(powercap_zlist);
+    double *temp_2 = zlist_last(powercap_zlist);
     mgr->converged = true;
     if (temp_2 == NULL)
       new_powercap = powerlimit;
@@ -80,7 +80,7 @@ double get_new_powercap(pwr_policy_t *mgr, double powerlimit,
     return new_powercap;
   }
   if (time_delta < 0) {
-    if (abs_delta < 5 && abs_delta > converge_time) {
+    if (abs_delta < 2) {
       new_powercap = current_powercap - decrease_threashold;
     }
   }

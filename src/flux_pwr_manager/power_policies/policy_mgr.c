@@ -39,9 +39,17 @@ void  pwr_policy_destroy(pwr_policy_t **pwr_mgr){
     free(pwr_mgr);
   return ;
   }
+  if(mgr->time_history==NULL){
+    retro_queue_buffer_destroy(mgr->powercap_history);
+    retro_queue_buffer_destroy(mgr->powerlimit_history);
+    free(pwr_mgr);
+  return ;
+  }
     retro_queue_buffer_destroy(mgr->powercap_history);
     retro_queue_buffer_destroy(mgr->powerlimit_history);
     retro_queue_buffer_destroy(mgr->time_history);
-  free(pwr_mgr);
+  free(mgr);
+  *pwr_mgr = NULL; 
+
   return;
 }

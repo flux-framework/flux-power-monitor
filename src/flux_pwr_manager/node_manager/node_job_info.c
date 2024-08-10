@@ -8,7 +8,7 @@
 #include "power_policies/power_policy.h"
 node_job_info *node_job_info_create(uint64_t jobId, char *job_cwd,
                                     node_device_info_t *device_data,
-                                    char *job_name,Logger *file_log) {
+                                    char *job_name, Logger *file_log) {
   if (jobId == 0 || job_cwd == NULL || device_data == NULL)
     return NULL;
   node_job_info *job_info = calloc(1, sizeof(node_job_info));
@@ -27,14 +27,14 @@ node_job_info *node_job_info_create(uint64_t jobId, char *job_cwd,
     job_info->power_policy_type[job_info->deviceId[i]] = FFT;
     pwr_policy_t *t = NULL;
     if (job_info->power_policy_type[job_info->deviceId[i]] == FFT) {
-      t = pwr_policy_new(FFT,file_log,job_info->deviceId[i]);
-      log_message("NEW t for device %d",job_info->deviceId[i]);
+      t = pwr_policy_new(FFT, file_log, job_info->deviceId[i]);
+      log_message("NEW t for device %d", job_info->deviceId[i]);
       if (t == NULL) {
         log_error("Unable to allocate memory for pwr_policy");
       }
     }
 
-     log_message("Setting t");
+    log_message("Setting t");
     job_info->node_job_power_mgr[job_info->deviceId[i]] = t;
   }
   return job_info;
@@ -53,8 +53,10 @@ node_job_info *node_job_info_copy(node_job_info *data) {
     // This is for power tracker to just have information about the job. It does
     // not require the information about powercap history; may need to change
     // later.
-    new_data->node_job_power_mgr[new_data->deviceId[i]]=NULL;
-    new_data->power_cap_data[new_data->deviceId[i]] = NULL;
+  }
+  for (int i = 0; i < 12; i++) {
+    new_data->node_job_power_mgr[i] = NULL;
+    new_data->power_cap_data[i] = NULL;
   }
   return new_data;
 }
@@ -65,7 +67,7 @@ void node_job_info_destroy(void **job) {
   free(job_info->job_cwd);
   free(job_info->name);
   for (int i = 0; i < job_info->num_of_devices; i++) {
-    if (job_info->node_job_power_mgr[i]!=NULL){
+    if (job_info->node_job_power_mgr[i] != NULL) {
       pwr_policy_destroy(&(job_info->node_job_power_mgr[i]));
     }
     if (job_info->power_cap_data[job_info->deviceId[i]] != NULL)
@@ -76,20 +78,23 @@ void node_job_info_destroy(void **job) {
   job_info = NULL;
 }
 
-void node_job_info_reset_power_data(node_job_info *job_data,int deviceId,double powerlimit){
-  if(job_data==NULL)
+void node_job_info_reset_power_data(node_job_info *job_data, int deviceId,
+                                    double powerlimit) {
+  if (job_data == NULL)
     return;
-  log_message("resetting for Device Id %d",deviceId);
-  if(job_data->node_job_power_mgr[deviceId]==NULL){
+  log_message("resetting for Device Id %d", deviceId);
+  if (job_data->node_job_power_mgr[deviceId] == NULL) {
     log_error("Power Manager not initalized");
     return;
   }
-  pwr_policy_t* mgr=job_data->node_job_power_mgr[deviceId];
+  pwr_policy_t *mgr = job_data->node_job_power_mgr[deviceId];
   zlist_purge(mgr->powercap_history->list);
-  double *a=malloc(sizeof(double));
-  double *b=malloc(sizeof(double));
-  *a=powerlimit;
-  *b=powerlimit;
-  retro_queue_buffer_push(mgr->powercap_history,a);
-  retro_queue_buffer_push(mgr->powerlimit_history,a);
+  // purge time buffer also
+  zlist_purge(mgr->time_history->list);
+  double *a = malloc(sizeof(double));
+  double *b = malloc(sizeof(double));
+  *a = powerlimit;
+  *b = powerlimit;
+  retro_queue_buffer_push(mgr->powercap_history, a);
+  retro_queue_buffer_push(mgr->powerlimit_history, b);
 }
