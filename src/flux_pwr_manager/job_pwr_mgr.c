@@ -1,10 +1,10 @@
-#include <jansson.h>
 #if HAVE_CONFIG_H
 #include "config.h"
 #endif
 #include "flux_pwr_logging.h"
 #include "job_pwr_mgr.h"
 #include "node_manager/node_manager.h"
+#include <jansson.h>
 #include "power_policies/uniform_pwr_policy.h"
 #include "pwr_info.h"
 #include "stdbool.h"
@@ -230,7 +230,6 @@ job_mgr_t *job_mgr_new(uint64_t jobId, char **nodelist, int num_of_nodes,
   }
   job_self_ref = job_mgr;
   // Get device info for each node
-
   send_new_job_rpc(h, job_mgr);
 cleanup:
 

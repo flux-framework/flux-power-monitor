@@ -31,6 +31,7 @@ node_job_info *node_job_info_create(uint64_t jobId, char *job_cwd,
       log_message("NEW t for device %d", job_info->deviceId[i]);
       if (t == NULL) {
         log_error("Unable to allocate memory for pwr_policy");
+        continue;
       }
     }
 
@@ -82,7 +83,6 @@ void node_job_info_reset_power_data(node_job_info *job_data, int deviceId,
                                     double powerlimit) {
   if (job_data == NULL)
     return;
-  log_message("resetting for Device Id %d", deviceId);
   if (job_data->node_job_power_mgr[deviceId] == NULL) {
     log_error("Power Manager not initalized");
     return;

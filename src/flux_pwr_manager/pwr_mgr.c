@@ -266,7 +266,7 @@ void flux_pwr_manager_jobtap_destructor_cb(flux_t *h, flux_msg_handler_t *mh,
   char **hostname_list;
   int size;
   bool terminated;
-  if (flux_request_unpack(msg, NULL, "{s:b}", "terminated", terminated) < 0) {
+  if (flux_request_unpack(msg, NULL, "{s:b}", "terminated", &terminated) < 0) {
     log_error("RPC_ERROR:Unpacking jobtap destructor");
   }
 

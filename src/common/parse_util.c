@@ -72,7 +72,6 @@ int update_device_info_from_json(json_t *json,
   size_t index;
   json_t *value;
   char **nodelist_name = NULL;
-
   printf("JSON: %s\n", json_dumps(json, 0));
   execution = json_object_get(json, "execution");
   if (!execution) {
@@ -194,7 +193,6 @@ int update_device_info_from_json(json_t *json,
     free(individual_nodes);
     current_size += num_of_elements;
   }
-  log_message("Done with parsing");
   if (nodelist_name != NULL) {
     for (int i = 0; i < num_of_nodes; i++) {
       if (nodelist_name[i] != NULL) {
@@ -253,7 +251,6 @@ node_device_info_t *json_to_node_device_info(json_t *device_data,
     log_error("device_data is null");
     return NULL;
   }
-  log_message("json %s\n", json_dumps(device_data, 0));
   node_device_info_t *info =
       (node_device_info_t *)malloc(sizeof(node_device_info_t));
   if (info == NULL) {
@@ -277,7 +274,6 @@ node_device_info_t *json_to_node_device_info(json_t *device_data,
 
   info->flux_rank = (int)json_integer_value(rank);
   info->num_of_gpus = (int)json_integer_value(num_of_gpus);
-  log_message("Num of gpus %d", info->num_of_gpus);
   *power_data = calloc(info->num_of_gpus, sizeof(double));
   if (*power_data == NULL) {
     log_error("Memory Allocation failed for power_data");

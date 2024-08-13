@@ -219,7 +219,6 @@ int node_manager_finish_job(uint64_t jobId) {
 
 int node_manager_new_job(uint64_t jobId, char *job_cwd, char *job_name,
                          node_device_info_t *device_data) {
-
   node_job_info *data =
       node_job_info_create(jobId, job_cwd, device_data, job_name,file_log);
   if (data == NULL)
