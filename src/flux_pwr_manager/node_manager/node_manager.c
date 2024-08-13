@@ -92,16 +92,17 @@ int node_manager_update_and_set_powercap(node_job_info *job, double powercap,
   log_message("setting power cap for JobId %ld deviceI %d and powercap %f",
               job->jobId, deviceId, powercap);
   retro_queue_buffer_push(job->power_cap_data[deviceId], data);
-  if (power_monitor_set_node_powercap(powercap, deviceId) < 0) {
-    return -1;
-  }
+    if (power_monitor_set_node_powercap(powercap, deviceId) < 0) {
+      return -1;
+    }
   if (fft_enable)
     fft_predictor_reset(deviceId);
   return 0;
 }
 
 int node_manager_cal_and_set_powercap() {
-  log_message("FFT state %d enable_dynamic_powercapping %d",fft_enable,enable_dynamic_powercapping);
+  log_message("FFT state %d enable_dynamic_powercapping %d", fft_enable,
+              enable_dynamic_powercapping);
   if (enable_dynamic_powercapping) {
     node_job_info *job_data = zhashx_first(current_jobs);
     while (job_data != NULL) {
@@ -110,11 +111,11 @@ int node_manager_cal_and_set_powercap() {
         pwr_policy_t *policy;
         if (job_data->power_policy_type[job_data->deviceId[i]] == FFT &&
             fft_enable) {
-            policy=job_data->node_job_power_mgr[job_data->deviceId[i]]; 
-          if (policy==NULL)
+          policy = job_data->node_job_power_mgr[job_data->deviceId[i]];
+          if (policy == NULL)
             continue;
           // log_message("Power Policy type is FFT");
-      // pwr_policy_t *data = pwr_policy_new(FFT);
+          // pwr_policy_t *data = pwr_policy_new(FFT);
         } else {
           continue;
         }
@@ -138,8 +139,8 @@ int node_manager_cal_and_set_powercap() {
                   ->list);
           period = *p;
         }
-        double new_powecap = policy->get_powercap(policy,
-            job_data->powerlimit[job_data->deviceId[i]],
+        double new_powecap = policy->get_powercap(
+            policy, job_data->powerlimit[job_data->deviceId[i]],
             job_device_current_powercap,
             job_data->external_power_data_reference[job_data->deviceId[i]]);
         // log_message("getting new powercap");
@@ -163,7 +164,7 @@ int node_manager_cal_and_set_powercap() {
 int node_manager_set_powerlimit(uint64_t jobId, double powerlimit,
                                 int deviceId) {
   // log_message("setting powercap for host %s device %d and power limit %f",
-              // node_hostname, deviceId, powerlimit);
+  // node_hostname, deviceId, powerlimit);
   if (powerlimit <= 0)
     return -1;
   node_job_info *job_data = zhashx_lookup(current_jobs, &jobId);
@@ -220,7 +221,7 @@ int node_manager_finish_job(uint64_t jobId) {
 int node_manager_new_job(uint64_t jobId, char *job_cwd, char *job_name,
                          node_device_info_t *device_data) {
   node_job_info *data =
-      node_job_info_create(jobId, job_cwd, device_data, job_name,file_log);
+      node_job_info_create(jobId, job_cwd, device_data, job_name, file_log);
   if (data == NULL)
     return -1;
   // Dynamic memory important.
@@ -415,14 +416,14 @@ void node_manager_manage_power() {
     log_message("setting powercap failed");
 }
 
-
-void node_manager_enable_disable_dynamic(bool flag){
-    enable_dynamic_powercapping = flag;
-  fft_enable=flag;
+void node_manager_enable_disable_dynamic(bool flag) {
   enable_dynamic_powercapping = flag;
-  fft_enable=flag;
-  log_message("Got disable/enable for dynamic power enable_dynamic_powercapping %d, fft_enable %d",enable_dynamic_powercapping,fft_enable);
-
+  fft_enable = flag;
+  enable_dynamic_powercapping = flag;
+  fft_enable = flag;
+  log_message("Got disable/enable for dynamic power "
+              "enable_dynamic_powercapping %d, fft_enable %d",
+              enable_dynamic_powercapping, fft_enable);
 }
 void node_manager_send_power_data() {}
 void node_manager_print_fft_result(void) { get_fft_result(); }
