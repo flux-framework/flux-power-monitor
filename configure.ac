@@ -99,7 +99,6 @@ AC_CHECK_FUNCS([gethostname strdup ssize_t])
 
 AC_CONFIG_FILES(\
                 Makefile \
-                src/flux_pwr_monitor/Makefile \
                 src/flux_pwr_manager/Makefile \
                 src/flux_pwr_manager/node_manager/Makefile\
                 src/flux_pwr_manager/power_policies/Makefile \
