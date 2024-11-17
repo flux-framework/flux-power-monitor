@@ -49,7 +49,7 @@ python power_query.py -j {jobId}
 ./scripts/unload_power_monitor.sh
 ```
 
-### license
+## license
 
 SPDX-License-Identifier: LGPL-3.0
 
