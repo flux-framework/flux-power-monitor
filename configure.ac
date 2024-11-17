@@ -60,20 +60,6 @@ AC_ARG_ENABLE([ubsan],
   [CFLAGS="$CFLAGS -fsanitize=undefined"
    CXXFLAGS="$CXXFLAGS -fsanitize=undefined"
    LDFLAGS="$LDFLAGS -fsanitize=undefined"])
-#FFTW for fourier transform
-# AC_ARG_WITH([fftw],
-#             [AS_HELP_STRING([--with-fftw=DIR],
-#                             [path to FFTW library])],
-#             [
-#               FFTW_LIB="-L$withval/lib"
-#               FFTW_INCLUDE="-I$withval/include"
-#               CPPFLAGS="$CPPFLAGS $FFTW_INCLUDE"
-#               LDFLAGS="$LDFLAGS $FFTW_LIB"
-#             ],
-#             [AC_MSG_ERROR([FFTW library is required. Please use --with-fftw to specify its location.])])
-#PKG_CHECK_MODULES([FFTW], [fftw3],
-#                  [],
-#                  [AC_MSG_ERROR([FFTW library not found. Please install it.])])
 
 PKG_CHECK_MODULES([czmq], [libczmq],
                   [],

@@ -14,7 +14,7 @@ def getJobInfo(handle, jobId):
 
 
 def getNodeList(nodeData):
-    print(nodeData)
+    print(f"Job runs on {nodeData}")
     if "[" in nodeData:
         hostname, ranges = nodeData.strip().split("[")
         ranges = ranges.rstrip("]").split(",")
