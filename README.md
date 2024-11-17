@@ -5,7 +5,7 @@ The Flux Power Monitor is a lightweight telemetry module for the Flux resource m
 
 ## Dependencies
 
-Flux Power Monitor relies on the following software:
+Flux Power Monitor depends on:
 
 1. **Flux-core**: Must be installed on the system.
 2. **Variorum**: For power data collection. Installation steps are available [here](https://variorum.readthedocs.io/en/latest/BuildingVariorum.html).
@@ -14,12 +14,12 @@ Flux Power Monitor relies on the following software:
    ```
    pip install flux-python
    ```
-The module is built using Autotools.
+The module is built using `Autotools`.
 
 ## Building the Module
 
 To build the Flux Power Monitor, follow these steps:
-1.`./autogen.sh`
+1. `./autogen.sh`
 2. Configure the build specifying the Variorum and Flux paths:
 ```
 ./configure --with-variorum=<path_to_variorum> --prefix=<path_to_flux>
