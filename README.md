@@ -2,7 +2,6 @@
 
 The Flux Power Monitor is a lightweight telemetry module for the Flux resource manager designed to provide job-level power statistics. It aggregates power data over time for each node and its respective hardware components based on the provided `jobId`.
 
----
 
 ## Dependencies
 
