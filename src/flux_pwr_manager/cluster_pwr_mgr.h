@@ -1,20 +1,30 @@
+/* Copyright 2014 Lawrence Livermore National Security, LLC
+ * (c.f. AUTHORS, NOTICE.LLNS, COPYING)
+ *
+ * This file is part of the Flux resource manager framework.
+ * For details, see https://github.com/flux-framework.
+ *
+ * SPDX-License-Identifier: LGPL-3.0
+ */
+
 #ifndef FLUX_PWR_MANAGER_CLUSTER_PWR_MANAGER_H
 #define FLUX_PWR_MANAGER_CLUSTER_PWR_MANAGER_H
-#include "job_pwr_mgr.h"
 #include <czmq.h>
 #include <flux/core.h>
+
+#include "job_pwr_mgr.h"
 typedef struct {
-  uint64_t jobId;
-  job_mgr_t *job_pwr_manager;
+    uint64_t jobId;
+    job_mgr_t *job_pwr_manager;
 } job_map_t;
 
 typedef struct {
-  double global_power_budget;
-  double current_power_usage;
-  int num_of_jobs;
-  zhashx_t *job_hash_table;
-  uint64_t num_of_nodes;
-  uint64_t num_of_devices;
+    double global_power_budget;
+    double current_power_usage;
+    int num_of_jobs;
+    zhashx_t *job_hash_table;
+    uint64_t num_of_nodes;
+    uint64_t num_of_devices;
 } cluster_mgr_t;
 
 /**
@@ -25,8 +35,9 @@ typedef struct {
  * @param num_of_nodes num of nodes in the cluster
  * @return the new cluster_mgr_T pointer.
  */
-cluster_mgr_t *cluster_mgr_new(flux_t *h, double global_power_budget,
-                               uint64_t num_of_nodes);
+cluster_mgr_t *cluster_mgr_new (flux_t *h,
+                                double global_power_budget,
+                                uint64_t num_of_nodes);
 
 /**
  * @brief This methods sets the global pwr_budget for the given cluster.
@@ -35,7 +46,7 @@ cluster_mgr_t *cluster_mgr_new(flux_t *h, double global_power_budget,
  * @param pwr the new powerlimit.
  * @return status.
  */
-int cluster_mgr_set_global_pwr_budget(cluster_mgr_t *cluster_mgr, double pwr);
+int cluster_mgr_set_global_pwr_budget (cluster_mgr_t *cluster_mgr, double pwr);
 
 /**
  * @brief This methods add a new job to the job hash table.
@@ -49,9 +60,12 @@ int cluster_mgr_set_global_pwr_budget(cluster_mgr_t *cluster_mgr, double pwr);
  * @param job_name job name.
  * @return status.
  */
-int cluster_mgr_add_new_job(cluster_mgr_t *cluster_mgr, uint64_t jobId,
-                            char **nodelist, int num_of_nodes, char *cwd,
-                            char *job_name);
+int cluster_mgr_add_new_job (cluster_mgr_t *cluster_mgr,
+                             uint64_t jobId,
+                             char **nodelist,
+                             int num_of_nodes,
+                             char *cwd,
+                             char *job_name);
 
 /**
  * @brief removes a job from the cluster.
@@ -60,14 +74,14 @@ int cluster_mgr_add_new_job(cluster_mgr_t *cluster_mgr, uint64_t jobId,
  * @param jobId the jobid.
  * @return status.
  */
-int cluster_mgr_remove_job(cluster_mgr_t *cluster_mgr, uint64_t jobId);
+int cluster_mgr_remove_job (cluster_mgr_t *cluster_mgr, uint64_t jobId);
 
 /**
  * @brief destructor for cluster_mgr_t
  *
  * @param manager
  */
-void cluster_mgr_destroy(cluster_mgr_t **manager);
+void cluster_mgr_destroy (cluster_mgr_t **manager);
 
 /**
  * @brief A callback which we use to keep the hostname and flux broker rank for
@@ -76,7 +90,7 @@ void cluster_mgr_destroy(cluster_mgr_t **manager);
  * @param rank the FLUX broker rank.
  * @param hostname hostname of that rank.
  */
-void cluster_mgr_add_hostname(int rank, char *hostname);
+void cluster_mgr_add_hostname (int rank, char *hostname);
 
 /**
  * @brief Callback function for setting powerratio between CPU/GPU. The RPC
@@ -88,8 +102,10 @@ void cluster_mgr_add_hostname(int rank, char *hostname);
  * @param msg
  * @param args
  */
-void cluster_mgr_set_power_ratio_cb(flux_t *h, flux_msg_handler_t *mh,
-                                    const flux_msg_t *msg, void *args);
+void cluster_mgr_set_power_ratio_cb (flux_t *h,
+                                     flux_msg_handler_t *mh,
+                                     const flux_msg_t *msg,
+                                     void *args);
 
 /**
  * @brief Callback function for setting global power budget. This RPC will
@@ -100,9 +116,10 @@ void cluster_mgr_set_power_ratio_cb(flux_t *h, flux_msg_handler_t *mh,
  * @param msg
  * @param args
  */
-void cluster_mgr_set_global_powerlimit_cb(flux_t *h, flux_msg_handler_t *mh,
-                                          const flux_msg_t *msg, void *args);
-void cluster_mgr_collect_power_data(cluster_mgr_t *cluster_mgr);
-void job_map_destroy(void **job_map);
+void cluster_mgr_set_global_powerlimit_cb (flux_t *h,
+                                           flux_msg_handler_t *mh,
+                                           const flux_msg_t *msg,
+                                           void *args);
+void cluster_mgr_collect_power_data (cluster_mgr_t *cluster_mgr);
+void job_map_destroy (void **job_map);
 #endif
-
