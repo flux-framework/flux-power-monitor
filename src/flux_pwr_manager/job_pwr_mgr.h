@@ -1,30 +1,40 @@
+/* Copyright 2014 Lawrence Livermore National Security, LLC
+ * (c.f. AUTHORS, NOTICE.LLNS, COPYING)
+ *
+ * This file is part of the Flux resource manager framework.
+ * For details, see https://github.com/flux-framework.
+ *
+ * SPDX-License-Identifier: LGPL-3.0
+ */
+
 #ifndef FLUX_PWR_MANAGER_JOB_PWR_MANAGER_H
 #define FLUX_PWR_MANAGER_JOB_PWR_MANAGER_H
+#include <flux/core.h>
+#include <unistd.h>
+
 #include "constants.h"
+#include "parse_util.h"
 #include "power_policies/policy_mgr.h"
 #include "power_policies/power_policy.h"
 #include "pwr_info.h"
 #include "pwr_stats.h"
 #include "retro_queue_buffer.h"
-#include "parse_util.h"
-#include <flux/core.h>
-#include <unistd.h>
 
 typedef struct {
-  uint64_t jobId;
-  int num_of_nodes; // Num of nodes in job
-  char *cwd;
-  char *job_name;
-  char **node_hostname_list;    // node hostname list for each node in the job.
-  double powerlimit;            // powerlimit for the job.
-  pwr_policy_t *job_pwr_policy; // power policy for the job.
-  int *hostname_rank_mapping;   // ranking between node and rank.
-  retro_queue_buffer_t *power_history; // Updated by callback
-  pwr_info pwr_data;                   // Updated by callback
-  pwr_stats_t *device_pwr_stats;        // Updated by callback
-  node_device_info_t *device_list; //list of devices associated with this job
-  int num_of_gpus;
-  int num_of_cpus;
+    uint64_t jobId;
+    int num_of_nodes;  // Num of nodes in job
+    char *cwd;
+    char *job_name;
+    char **node_hostname_list;     // node hostname list for each node in the job.
+    double powerlimit;             // powerlimit for the job.
+    pwr_policy_t *job_pwr_policy;  // power policy for the job.
+    int *hostname_rank_mapping;    // ranking between node and rank.
+    retro_queue_buffer_t *power_history;  // Updated by callback
+    pwr_info pwr_data;                    // Updated by callback
+    pwr_stats_t *device_pwr_stats;        // Updated by callback
+    node_device_info_t *device_list;      // list of devices associated with this job
+    int num_of_gpus;
+    int num_of_cpus;
 
 } job_mgr_t;
 /**
@@ -41,17 +51,24 @@ typedef struct {
  * @para h: flux handle required to make RPC.
  * @returns A pointer to the new job_mgr_t.
  **/
-//TODO: Remove power_ratio, setting power ratio for a whole job is wrong.
-// Currently just setting a single value.
-job_mgr_t *job_mgr_new(uint64_t jobId, char **nodelist, int num_of_nodes,
-                       char *cwd, char *job_name, POWER_POLICY_TYPE pwr_policy,
-                       double powerlimit,node_device_info_t *device_data,  int *node_index, flux_t *h);
+// TODO: Remove power_ratio, setting power ratio for a whole job is wrong.
+//  Currently just setting a single value.
+job_mgr_t *job_mgr_new (uint64_t jobId,
+                        char **nodelist,
+                        int num_of_nodes,
+                        char *cwd,
+                        char *job_name,
+                        POWER_POLICY_TYPE pwr_policy,
+                        double powerlimit,
+                        node_device_info_t *device_data,
+                        int *node_index,
+                        flux_t *h);
 /**
  * @brief Destructor for job_mgr.
  * @para h flux handle.
  * @para job_mgr_t **job: the job object that is getting destoyed.
  **/
-void job_mgr_destroy(flux_t *h, job_mgr_t **job);
+void job_mgr_destroy (flux_t *h, job_mgr_t **job);
 
 /**
  * @brief This method update the @para job_mgr with the given @para
@@ -64,11 +81,10 @@ void job_mgr_destroy(flux_t *h, job_mgr_t **job);
  * be a fixed power per node * num_of_nodes
  * @returns the status.
  **/
-int job_mgr_update_powerlimit(job_mgr_t *job_mgr, flux_t *h,
-                              double new_powerlimit);
+int job_mgr_update_powerlimit (job_mgr_t *job_mgr, flux_t *h, double new_powerlimit);
 // should be between 0-100
-void broadcast_node_power_ratio(int power_ratio);
+void broadcast_node_power_ratio (int power_ratio);
 
-void manage_power_capping();
+void manage_power_capping ();
 
 #endif

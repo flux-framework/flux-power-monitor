@@ -1,7 +1,15 @@
+/* Copyright 2014 Lawrence Livermore National Security, LLC
+ * (c.f. AUTHORS, NOTICE.LLNS, COPYING)
+ *
+ * This file is part of the Flux resource manager framework.
+ * For details, see https://github.com/flux-framework.
+ *
+ * SPDX-License-Identifier: LGPL-3.0
+ */
+
 #ifndef FLUX_PWR_MGR_SYSTEM_CONFIG_H
 #define FLUX_PWR_MGR_SYSTEM_CONFIG_H
 #define NUM_OF_GPUS 2
 #define NUM_OF_MEMS 2
 #define NUM_OF_CPUS 2
 #endif
-
