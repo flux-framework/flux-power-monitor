@@ -23,7 +23,7 @@ void log_message_internal (const char *function_name,
     va_start (args, format);
     char buffer[512];
     vsnprintf (buffer, sizeof (buffer), format, args);
-    flux_log (h, LOG_CRIT, "Func:%s Line:%d %s", function_name, line_number, buffer);
+    flux_log (h, LOG_INFO, "Func:%s Line:%d %s", function_name, line_number, buffer);
     va_end (args);
 }
 

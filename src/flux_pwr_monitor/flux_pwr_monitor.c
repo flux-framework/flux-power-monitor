@@ -375,7 +375,6 @@ void flux_pwr_monitor_get_hostname (flux_t *h,
     }
 
 error:
-    log_error ("Unable to unpack hostname request");
     if (flux_respond_error (h,
                             msg,
                             errno,
