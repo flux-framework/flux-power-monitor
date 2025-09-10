@@ -97,6 +97,10 @@ The `data_presence` field indicates whether all samples were retained. This is b
 
 Flux Power Monitor utilizes the `variorum_get_power_json` API from Variorum and supports all architectures where this API is supported. Details on architectures supported by Variorum can be found [here](https://github.com/llnl/variorum).
 
+## References and Recommended Citation
+
+Naman Kulshreshtha, Tapasya Patki, Jim Garlick, Mark Grondona, and Rong Ge. 2025. _Vendor-neutral and Production-grade Job Power Management in High Performance Computing._ In Proceedings of the SC '24 Workshops of the International Conference on High Performance Computing, Network, Storage, and Analysis (SC-W '24). IEEE Press, 1845–1855. https://doi.org/10.1109/SCW63240.2024.00231 
+
 ## Auspices
 
 Part of this work was supported by the LLNL-LDRD Program under Project No. 24-SI-005.
@@ -106,5 +110,6 @@ Part of this work was supported by the LLNL-LDRD Program under Project No. 24-SI
 SPDX-License-Identifier: LGPL-3.0
 
 LLNL-CODE-764420
+
 
 
