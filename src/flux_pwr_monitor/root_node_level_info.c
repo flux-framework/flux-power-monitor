@@ -1,3 +1,12 @@
+/* Copyright 2014 Lawrence Livermore National Security, LLC
+ * (c.f. AUTHORS, NOTICE.LLNS, COPYING)
+ *
+ * This file is part of the Flux resource manager framework.
+ * For details, see https://github.com/flux-framework.
+ *
+ * SPDX-License-Identifier: LGPL-3.0
+ */
+
 #define _POSIX_C_SOURCE 200809L
 #include "root_node_level_info.h"
 root_node_level_info *root_node_data_new(int sender,

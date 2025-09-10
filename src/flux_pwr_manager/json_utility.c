@@ -1,3 +1,12 @@
+/* Copyright 2014 Lawrence Livermore National Security, LLC
+ * (c.f. AUTHORS, NOTICE.LLNS, COPYING)
+ *
+ * This file is part of the Flux resource manager framework.
+ * For details, see https://github.com/flux-framework.
+ *
+ * SPDX-License-Identifier: LGPL-3.0
+ */
+
 #include "json_utility.h"
 json_t *create_device_json(device_type type, int device_id, double powercap) {
   return json_pack("{s:i s:i s:f}", "type", type, "id", device_id, "pcap_set",
