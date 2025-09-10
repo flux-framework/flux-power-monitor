@@ -62,7 +62,7 @@ The example below shows the power data output for the `GEMM` kernel running on t
 
 ```
 1. Load the module with a buffer size of 2 samples and a 1-second sampling rate
-./scripts/load_power_monitor.sh -s 2 -r 1
+./scripts/load_power_monitor.sh -s 100000 -r 1
 
 2. Confirm the module is active
 flux module list
