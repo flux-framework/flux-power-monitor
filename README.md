@@ -81,6 +81,9 @@ power data for job f3tqYbGq5
 ```
 The `result_start_{end}_time` fields show when sampling began and ended (in µs since the epoch). The `data_presence` field indicates whether all samples were retained—because we use a circular buffer, it never “overflows” in the error sense, but if a job runs longer than the buffer’s capacity the oldest measurements are overwritten, resulting in Incomplete data.
 
+
+This should work on the new Tuolumne systems as soon as Variorum add supports for it.
+
 ## license
 
 SPDX-License-Identifier: LGPL-3.0
